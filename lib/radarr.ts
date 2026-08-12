@@ -75,11 +75,20 @@ async function request<T>(
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
-    const reason =
-      err instanceof Error && err.name === "TimeoutError"
+    // undici wraps the real failure in `TypeError: fetch failed`, so the
+    // useful name is on `cause`. Reading only `err.name` reports every
+    // timeout as a connection failure and sends you debugging the network.
+    const cause = err instanceof Error ? err.cause : undefined;
+    const name =
+      cause instanceof Error ? cause.name : err instanceof Error ? err.name : "";
+    const detail = cause instanceof Error ? ` (${cause.message})` : "";
+
+    throw new RadarrError(
+      name === "TimeoutError"
         ? `Radarr did not respond within ${Math.round(timeoutMs / 1000)}s`
-        : `Could not reach Radarr at ${process.env.RADARR_URL}`;
-    throw new RadarrError(reason, 504);
+        : `Could not reach Radarr at ${process.env.RADARR_URL}${detail}`,
+      504,
+    );
   }
 
   if (!res.ok) {
