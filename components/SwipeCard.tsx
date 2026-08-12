@@ -26,10 +26,12 @@ export default function SwipeCard({
   movie,
   exitDirection,
   onCommit,
+  onPlayTrailer,
 }: {
   movie: DiscoverMovie;
   exitDirection: SwipeDirection | null;
   onCommit: (direction: SwipeDirection) => void;
+  onPlayTrailer: () => void;
 }) {
   const reduceMotion = useReducedMotion();
   const x = useMotionValue(0);
@@ -68,7 +70,7 @@ export default function SwipeCard({
           onCommit(info.offset.x > 0 ? "right" : "left");
         }}
       >
-        <MovieCard movie={movie} />
+        <MovieCard movie={movie} onPlayTrailer={onPlayTrailer} />
       </motion.div>
 
       {/* Outside the dragged element on purpose: the band stays put and fills

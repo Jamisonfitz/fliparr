@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ActionBar from "./ActionBar";
+import GenreSheet from "./GenreSheet";
 import MovieCard from "./MovieCard";
 import SwipeCard from "./SwipeCard";
+import TrailerSheet from "./TrailerSheet";
 import type { DiscoverMovie, SwipeDirection } from "@/lib/types";
 
 /**
@@ -37,9 +39,25 @@ export default function SwipeDeck() {
   const [undoDepth, setUndoDepth] = useState(0);
   const [undoing, setUndoing] = useState(false);
   const [notice, setNotice] = useState("");
+  const [genres, setGenres] = useState<string[]>([]);
+  const [genreOpen, setGenreOpen] = useState(false);
+  const [trailer, setTrailer] = useState<DiscoverMovie | null>(null);
 
   /** A ref, not state: the refill guard never affects what's rendered. */
   const refilling = useRef(false);
+
+  /**
+   * What's actually on screen. `deck` stays whole so the filter is reversible
+   * and the refill below can key off the real card count — filtering to a thin
+   * genre shouldn't trigger a refetch on every swipe.
+   */
+  const visible = useMemo(
+    () =>
+      genres.length === 0
+        ? deck
+        : deck.filter((m) => m.genres.some((g) => genres.includes(g))),
+    [deck, genres],
+  );
 
   // State lands in the promise callbacks rather than the function body, so the
   // mount effect below doesn't set state synchronously and cascade a render.
@@ -71,11 +89,12 @@ export default function SwipeDeck() {
 
   const commit = useCallback(
     async (direction: SwipeDirection) => {
-      const movie = deck[0];
+      // The top of what's on screen, which the filter may have narrowed.
+      const movie = visible[0];
       if (!movie) return;
 
       setExitDirection(direction);
-      setDeck((d) => d.slice(1));
+      setDeck((d) => d.filter((m) => m.tmdbId !== movie.tmdbId));
       setUndoDepth((n) => n + 1);
 
       try {
@@ -91,7 +110,7 @@ export default function SwipeDeck() {
         setNotice((err as Error).message);
       }
     },
-    [deck],
+    [visible],
   );
 
   const undo = useCallback(async () => {
@@ -141,16 +160,19 @@ export default function SwipeDeck() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      // A sheet is a modal: arrows shouldn't swipe the deck behind it.
+      if (genreOpen || trailer) return;
       if (event.key === "ArrowLeft") void commit("left");
       else if (event.key === "ArrowRight") void commit("right");
       else if (event.key.toLowerCase() === "u") void undo();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [commit, undo]);
+  }, [commit, undo, genreOpen, trailer]);
 
-  const top = deck[0];
+  const top = visible[0];
   const backdrop = fanartOf(top);
+  const filtered = genres.length > 0;
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
@@ -175,10 +197,34 @@ export default function SwipeDeck() {
         <span className="font-display text-sm tracking-[0.28em] uppercase">
           Fliparr
         </span>
-        <div className="flex items-center gap-4">
-          <span className="font-data text-[0.6rem] tracking-[0.2em] text-muted uppercase tabular-nums">
-            {status === "ready" ? `${deck.length} to go` : " "}
+        <div className="flex items-center gap-3.5">
+          <span className="font-data mr-1 text-[0.6rem] tracking-[0.2em] text-muted uppercase tabular-nums">
+            {status === "ready" ? `${visible.length} to go` : " "}
           </span>
+          <button
+            type="button"
+            onClick={() => setGenreOpen(true)}
+            aria-label="Filter by genre"
+            className={`cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none ${
+              filtered ? "text-screen" : "text-muted hover:text-screen"
+            }`}
+          >
+            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+              <path d="M3 6h18M6.5 12h11M10 18h4" />
+            </svg>
+          </button>
+
+          <Link
+            href="/history"
+            aria-label="Swipe history"
+            className="text-muted transition-colors hover:text-screen focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none"
+          >
+            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="8.8" />
+              <path d="M12 7.4V12l3.1 1.9" />
+            </svg>
+          </Link>
+
           <Link
             href="/settings"
             aria-label="Settings"
@@ -209,6 +255,15 @@ export default function SwipeDeck() {
             </Message>
           )}
 
+          {status === "ready" && visible.length === 0 && filtered && (
+            <Message
+              title="Nothing in that genre"
+              body={`No ${genres.join(" or ").toLowerCase()} left in the deck. ${deck.length} other cards are waiting.`}
+            >
+              <Action onClick={() => setGenres([])}>Clear filter</Action>
+            </Message>
+          )}
+
           {status === "ready" && deck.length === 0 && (
             <Message
               title="Deck clear"
@@ -225,16 +280,16 @@ export default function SwipeDeck() {
             </Message>
           )}
 
-          {status === "ready" && deck.length > 0 && (
+          {status === "ready" && visible.length > 0 && (
             <>
               {/* The next card sits behind: it reads as a stack, and its
                   poster is already decoded by the time it reaches the top. */}
-              {deck[1] && (
+              {visible[1] && (
                 <div
                   aria-hidden
                   className="pointer-events-none absolute inset-0 scale-[0.93] opacity-25"
                 >
-                  <MovieCard movie={deck[1]} />
+                  <MovieCard movie={visible[1]} />
                 </div>
               )}
               <AnimatePresence initial={false} custom={exitDirection}>
@@ -243,6 +298,7 @@ export default function SwipeDeck() {
                   movie={top!}
                   exitDirection={exitDirection}
                   onCommit={(direction) => void commit(direction)}
+                  onPlayTrailer={() => setTrailer(top!)}
                 />
               </AnimatePresence>
             </>
@@ -255,7 +311,7 @@ export default function SwipeDeck() {
             onApprove={() => void commit("right")}
             onUndo={() => void undo()}
             canUndo={undoDepth > 0}
-            disabled={status !== "ready" || deck.length === 0}
+            disabled={status !== "ready" || visible.length === 0}
           />
         </div>
       </main>
@@ -273,6 +329,16 @@ export default function SwipeDeck() {
           </motion.p>
         )}
       </AnimatePresence>
+
+      <GenreSheet
+        open={genreOpen}
+        onClose={() => setGenreOpen(false)}
+        deck={deck}
+        selected={genres}
+        onChange={setGenres}
+      />
+
+      <TrailerSheet movie={trailer} onClose={() => setTrailer(null)} />
     </div>
   );
 }

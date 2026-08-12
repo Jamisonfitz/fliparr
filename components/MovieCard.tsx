@@ -19,7 +19,14 @@ function runtimeLabel(minutes: number) {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
-export default function MovieCard({ movie }: { movie: DiscoverMovie }) {
+export default function MovieCard({
+  movie,
+  onPlayTrailer,
+}: {
+  movie: DiscoverMovie;
+  /** Only the top card gets this; the card behind is inert. */
+  onPlayTrailer?: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   const facts = [
@@ -30,7 +37,7 @@ export default function MovieCard({ movie }: { movie: DiscoverMovie }) {
 
   return (
     <article className="card-surface flex h-full flex-col gap-5 overflow-hidden rounded-2xl border border-edge bg-surface p-5 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)]">
-      <div className="flex min-h-0 flex-1 items-center justify-center">
+      <div className="relative flex min-h-0 flex-1 items-center justify-center">
         {movie.remotePoster ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -45,6 +52,25 @@ export default function MovieCard({ movie }: { movie: DiscoverMovie }) {
               No poster
             </span>
           </div>
+        )}
+
+        {onPlayTrailer && movie.youTubeTrailerId && (
+          <button
+            type="button"
+            // The card is a drag surface: only fire when the pointer didn't
+            // travel, and keep the press from starting a drag at all.
+            onPointerDownCapture={(e) => e.stopPropagation()}
+            onClick={onPlayTrailer}
+            aria-label={`Play ${movie.title} trailer`}
+            className="absolute right-3 bottom-3 flex cursor-pointer items-center gap-2 rounded-full border border-white/25 bg-black/70 px-3.5 py-2 backdrop-blur transition-colors hover:bg-black/85 focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none"
+          >
+            <svg viewBox="0 0 24 24" className="size-3.5 text-screen" fill="currentColor">
+              <path d="M8 5.5v13l11-6.5z" />
+            </svg>
+            <span className="font-data text-[0.58rem] tracking-[0.2em] text-screen uppercase">
+              Trailer
+            </span>
+          </button>
         )}
       </div>
 
