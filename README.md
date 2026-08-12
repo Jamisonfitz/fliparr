@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fliparr
 
-## Getting Started
+Swipe through Radarr's Discover recommendations.
 
-First, run the development server:
+Radarr's **Movies → Discover** tab is a dense alphabetical list: every movie
+needs a checkbox tick and a trip down to the footer bar to either add it or
+exclude it. Fliparr turns that into a deck. One movie fills the screen — poster,
+ratings, genres, synopsis — and you decide with a swipe.
+
+- **Swipe right** — adds the movie to Radarr, monitored, and starts a search.
+- **Swipe left** — writes a real import list exclusion, so it never comes back
+  here *or* in Radarr's own Discover tab.
+- **Undo** — reverses the last swipe, up to 50 deep.
+
+Arrow keys work on desktop (`←` exclude, `→` add, `u` undo).
+
+## The deck refills itself
+
+Radarr builds its recommendations from a live query over every movie you own,
+subtracting your library and your exclusion list, capped at the top 100. The
+candidate pool is much larger than that — so each swipe frees a slot and
+promotes the next-best candidate. Fliparr pulls a fresh deck once you're under
+15 cards left, which is why the queue keeps producing new material instead of
+draining to zero.
+
+## Configuration
+
+| Variable | What it's for |
+| --- | --- |
+| `RADARR_URL` | Your Radarr instance, e.g. `http://192.168.0.10:7878` |
+| `RADARR_API_KEY` | Radarr → Settings → General → API Key |
+| `DATA_DIR` | Where settings and swipe history are written. `/config` in Docker. |
+
+Quality profile, root folder, monitor mode, minimum availability, and
+search-on-add are set in the app's own settings screen; the choices are read
+live from Radarr.
+
+The API key stays server-side — the browser only ever talks to Fliparr's own
+routes, never to Radarr directly.
+
+## Running it
+
+Local development:
 
 ```bash
+cp .env.example .env.local   # fill in RADARR_API_KEY
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Docker:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker build -t fliparr:latest .
+docker run -d --name fliparr --restart unless-stopped \
+  -p 7979:3000 \
+  -e RADARR_URL=http://192.168.0.10:7878 \
+  -e RADARR_API_KEY=your_key_here \
+  -v /mnt/user/appdata/fliparr:/config \
+  fliparr:latest
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Then open `http://<your-server>:7979` on your phone.
 
-## Learn More
+`docker-compose.yml` is equivalent, if you have the compose plugin — Unraid
+does not ship with it by default.
 
-To learn more about Next.js, take a look at the following resources:
+## Notes for anyone changing this
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Two decisions worth knowing before you touch `lib/radarr.ts`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**It uses the single-item write endpoints, not the bulk ones.** Radarr's own
+Discover footer posts to `POST /importlist/movie` and `POST /exclusions/bulk`.
+The bulk add runs with `ignoreErrors: true` and answers `200` with an empty
+array when an add is rejected — in a swipe UI that reads as success while
+nothing happened. `POST /movie` returns a real `400` and hands back the created
+id, which undo needs.
 
-## Deploy on Vercel
+**The Discover response is cached for 15 minutes.** Radarr's controller does an
+uncached bulk TMDb lookup for all ~100 recommendation ids on every single
+request, so the upstream call can take up to a minute. Never call
+`getDiscoverMovies()` straight from a request path; go through `lib/deck.ts`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Also: undoing an add must pass `addImportExclusion=false`. If it ever defaults
+to true, "undo" would permanently exclude the movie — the exact opposite of
+what it says on the button.

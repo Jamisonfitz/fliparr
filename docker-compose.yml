@@ -1,0 +1,15 @@
+services:
+  fliparr:
+    build: .
+    image: fliparr:latest
+    container_name: fliparr
+    restart: unless-stopped
+    ports:
+      - "7979:3000"
+    environment:
+      RADARR_URL: ${RADARR_URL}
+      RADARR_API_KEY: ${RADARR_API_KEY}
+      DATA_DIR: /config
+    volumes:
+      # Settings and swipe history live here, so undo survives a restart.
+      - /mnt/user/appdata/fliparr:/config
