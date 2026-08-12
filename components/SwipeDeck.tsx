@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AboutSheet from "./AboutSheet";
 import ActionBar from "./ActionBar";
 import GenreSheet from "./GenreSheet";
 import MovieCard from "./MovieCard";
@@ -41,7 +42,9 @@ export default function SwipeDeck() {
   const [notice, setNotice] = useState("");
   const [genres, setGenres] = useState<string[]>([]);
   const [genreOpen, setGenreOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [trailer, setTrailer] = useState<DiscoverMovie | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   /** A ref, not state: the refill guard never affects what's rendered. */
   const refilling = useRef(false);
@@ -131,6 +134,41 @@ export default function SwipeDeck() {
     }
   }, [undoDepth, undoing]);
 
+  /** Appends only titles the deck hasn't seen, so a refetch can't duplicate cards. */
+  const mergeNew = useCallback((movies: DiscoverMovie[]) => {
+    setDeck((current) => {
+      const seen = new Set(current.map((m) => m.tmdbId));
+      return [...current, ...movies.filter((m) => !seen.has(m.tmdbId))];
+    });
+  }, []);
+
+  /** The header button. Same refetch as the automatic refill, asked for by hand. */
+  const loadMore = useCallback(async () => {
+    if (refilling.current) return;
+    refilling.current = true;
+    setLoadingMore(true);
+    try {
+      const { movies } = await call<{ movies: DiscoverMovie[] }>(
+        "/api/deck?refresh=1",
+      );
+      const known = new Set(deck.map((m) => m.tmdbId));
+      const fresh = movies.filter((m) => !known.has(m.tmdbId));
+      mergeNew(movies);
+      // Say so rather than leaving the button looking broken. Radarr only
+      // promotes new candidates once swipes free up slots in its top 100.
+      setNotice(
+        fresh.length
+          ? `Added ${fresh.length} more.`
+          : "Nothing new yet — Radarr suggests more as you keep swiping.",
+      );
+    } catch (err) {
+      setNotice((err as Error).message);
+    } finally {
+      refilling.current = false;
+      setLoadingMore(false);
+    }
+  }, [deck, mergeNew]);
+
   // Every swipe frees a slot in Radarr's top 100, so a refresh brings genuinely
   // new titles rather than the same list again.
   useEffect(() => {
@@ -144,31 +182,26 @@ export default function SwipeDeck() {
     }
     refilling.current = true;
     call<{ movies: DiscoverMovie[] }>("/api/deck?refresh=1")
-      .then(({ movies }) => {
-        setDeck((current) => {
-          const seen = new Set(current.map((m) => m.tmdbId));
-          return [...current, ...movies.filter((m) => !seen.has(m.tmdbId))];
-        });
-      })
+      .then(({ movies }) => mergeNew(movies))
       .catch(() => {
         // A failed background refill isn't worth interrupting the user for.
       })
       .finally(() => {
         refilling.current = false;
       });
-  }, [deck.length, status]);
+  }, [deck.length, status, mergeNew]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       // A sheet is a modal: arrows shouldn't swipe the deck behind it.
-      if (genreOpen || trailer) return;
+      if (genreOpen || aboutOpen || trailer) return;
       if (event.key === "ArrowLeft") void commit("left");
       else if (event.key === "ArrowRight") void commit("right");
       else if (event.key.toLowerCase() === "u") void undo();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [commit, undo, genreOpen, trailer]);
+  }, [commit, undo, genreOpen, aboutOpen, trailer]);
 
   const top = visible[0];
   const backdrop = fanartOf(top);
@@ -197,10 +230,15 @@ export default function SwipeDeck() {
         <span className="font-display text-sm tracking-[0.28em] uppercase">
           Fliparr
         </span>
-        <div className="flex items-center gap-3.5">
-          <span className="font-data mr-1 text-[0.6rem] tracking-[0.2em] text-muted uppercase tabular-nums">
-            {status === "ready" ? `${visible.length} to go` : " "}
-          </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={status !== "ready" || loadingMore}
+            className="font-data mr-1 cursor-pointer rounded-full border border-edge px-3 py-1.5 text-[0.55rem] tracking-[0.18em] text-muted uppercase transition-colors hover:border-muted hover:text-screen focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loadingMore ? "Loading" : "Load more"}
+          </button>
           <button
             type="button"
             onClick={() => setGenreOpen(true)}
@@ -225,14 +263,27 @@ export default function SwipeDeck() {
             </svg>
           </Link>
 
+          <button
+            type="button"
+            onClick={() => setAboutOpen(true)}
+            aria-label="About Fliparr"
+            className="cursor-pointer text-muted transition-colors hover:text-screen focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none"
+          >
+            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+              <circle cx="12" cy="12" r="8.8" />
+              <path d="M12 10.8v5.4" />
+              <circle cx="12" cy="7.9" r="0.5" fill="currentColor" />
+            </svg>
+          </button>
+
           <Link
             href="/settings"
             aria-label="Settings"
             className="text-muted transition-colors hover:text-screen focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none"
           >
-            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8}>
-              <circle cx="12" cy="12" r="3.2" />
-              <path d="M12 2.5v2.6M12 18.9v2.6M21.5 12h-2.6M5.1 12H2.5M18.7 5.3l-1.9 1.9M7.2 16.8l-1.9 1.9M18.7 18.7l-1.9-1.9M7.2 7.2L5.3 5.3" strokeLinecap="round" />
+            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </Link>
         </div>
@@ -339,6 +390,8 @@ export default function SwipeDeck() {
       />
 
       <TrailerSheet movie={trailer} onClose={() => setTrailer(null)} />
+
+      <AboutSheet open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>
   );
 }
