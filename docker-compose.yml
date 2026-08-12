@@ -6,8 +6,14 @@ services:
     restart: unless-stopped
     ports:
       - "7979:3000"
+    # Reaches Radarr through the Docker bridge gateway rather than the host's
+    # LAN address. Pointing at the LAN IP leaves the bridge and gets NAT'd back
+    # in, which only works while Docker's hairpin rules survive — it broke in
+    # practice on a container recreate.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      RADARR_URL: ${RADARR_URL}
+      RADARR_URL: ${RADARR_URL:-http://host.docker.internal:7878}
       RADARR_API_KEY: ${RADARR_API_KEY}
       DATA_DIR: /config
     volumes:

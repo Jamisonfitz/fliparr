@@ -54,11 +54,19 @@ Docker:
 docker build -t fliparr:latest .
 docker run -d --name fliparr --restart unless-stopped \
   -p 7979:3000 \
-  -e RADARR_URL=http://192.168.0.10:7878 \
+  --add-host host.docker.internal:host-gateway \
+  -e RADARR_URL=http://host.docker.internal:7878 \
   -e RADARR_API_KEY=your_key_here \
   -v /mnt/user/appdata/fliparr:/config \
   fliparr:latest
 ```
+
+**Point `RADARR_URL` at `host.docker.internal`, not the host's LAN address.**
+When Radarr runs on the same box, the LAN IP makes the request leave the
+bridge network and get NAT'd back in — it only works while Docker's hairpin
+rules hold, and it broke here on a plain container recreate while the host
+itself could still reach Radarr fine. `host-gateway` keeps the traffic on the
+bridge.
 
 Then open `http://<your-server>:7979` on your phone.
 
