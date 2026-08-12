@@ -1,5 +1,7 @@
+import { getConnection } from "./store";
 import type {
   AddedMovie,
+  Connection,
   DiscoverMovie,
   Exclusion,
   QualityProfile,
@@ -22,16 +24,18 @@ export class RadarrError extends Error {
   }
 }
 
-function config() {
-  const url = process.env.RADARR_URL;
-  const apiKey = process.env.RADARR_API_KEY;
-  if (!url || !apiKey) {
+async function config(override?: Connection) {
+  const connection = override ?? (await getConnection());
+  if (!connection?.url || !connection.apiKey) {
     throw new RadarrError(
-      "RADARR_URL and RADARR_API_KEY must both be set. Copy .env.example to .env.local.",
-      500,
+      "Radarr isn't connected yet. Add its address and API key in Settings.",
+      503,
     );
   }
-  return { base: `${url.replace(/\/+$/, "")}/api/v3`, apiKey };
+  return {
+    base: `${connection.url.replace(/\/+$/, "")}/api/v3`,
+    apiKey: connection.apiKey,
+  };
 }
 
 /**
@@ -40,6 +44,10 @@ function config() {
  * something a toast can display rather than dumping raw JSON at the user.
  */
 function readError(body: string, status: number): string {
+  // Radarr answers a bad key with a bare 401 and no body worth showing.
+  if (status === 401) return "Radarr rejected that API key.";
+  if (status === 404 && !body) return "That address isn't a Radarr instance.";
+
   try {
     const parsed = JSON.parse(body);
     if (Array.isArray(parsed)) {
@@ -57,10 +65,10 @@ function readError(body: string, status: number): string {
 
 async function request<T>(
   path: string,
-  init: RequestInit & { timeoutMs?: number } = {},
+  init: RequestInit & { timeoutMs?: number; connection?: Connection } = {},
 ): Promise<T> {
-  const { base, apiKey } = config();
-  const { timeoutMs = 20_000, ...rest } = init;
+  const { timeoutMs = 20_000, connection, ...rest } = init;
+  const { base, apiKey } = await config(connection);
 
   let res: Response;
   try {
@@ -86,7 +94,7 @@ async function request<T>(
     throw new RadarrError(
       name === "TimeoutError"
         ? `Radarr did not respond within ${Math.round(timeoutMs / 1000)}s`
-        : `Could not reach Radarr at ${process.env.RADARR_URL}${detail}`,
+        : `Could not reach Radarr at ${base.replace(/\/api\/v3$/, "")}${detail}`,
       504,
     );
   }
@@ -112,6 +120,19 @@ export function getDiscoverMovies(): Promise<DiscoverMovie[]> {
   return request<DiscoverMovie[]>(
     "/importlist/movie?includeRecommendations=true",
     { timeoutMs: 120_000 },
+  );
+}
+
+/**
+ * Checks credentials without saving them, so the settings screen can tell you
+ * whether an address and key work before you commit to them.
+ */
+export function testConnection(
+  connection: Connection,
+): Promise<{ instanceName?: string; version: string }> {
+  return request<{ instanceName?: string; version: string }>(
+    "/system/status",
+    { connection, timeoutMs: 10_000 },
   );
 }
 

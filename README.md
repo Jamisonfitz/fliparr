@@ -25,18 +25,28 @@ draining to zero.
 
 ## Configuration
 
+Everything is set in the app's own **Settings** screen: Radarr's address and
+API key (with a **Test** button), then quality profile, root folder, monitor
+mode, minimum availability, and search-on-add. The profile and root folder
+choices are read live from your Radarr.
+
+Environment variables are optional. They seed a fresh install so a container
+comes up already connected; once you save a connection in the app, the saved
+one wins and changing it needs no redeploy.
+
 | Variable | What it's for |
 | --- | --- |
-| `RADARR_URL` | Your Radarr instance, e.g. `http://192.168.0.10:7878` |
+| `RADARR_URL` | Radarr's address, e.g. `http://192.168.0.10:7878` |
 | `RADARR_API_KEY` | Radarr → Settings → General → API Key |
-| `DATA_DIR` | Where settings and swipe history are written. `/config` in Docker. |
+| `DATA_DIR` | Where the connection, settings, and history are written. `/config` in Docker. |
 
-Quality profile, root folder, monitor mode, minimum availability, and
-search-on-add are set in the app's own settings screen; the choices are read
-live from Radarr.
+The API key stays server-side. It is never sent back to the browser — the
+settings screen only learns whether a key is set, and saving with a blank key
+keeps the existing one.
 
-The API key stays server-side — the browser only ever talks to Fliparr's own
-routes, never to Radarr directly.
+**Fliparr has no login.** Anyone who can reach the port can change your Radarr
+connection and add films. Keep it on your LAN or behind whatever proxy and auth
+you already run.
 
 ## Running it
 
@@ -68,7 +78,7 @@ rules hold, and it broke here on a plain container recreate while the host
 itself could still reach Radarr fine. `host-gateway` keeps the traffic on the
 bridge.
 
-Then open `http://<your-server>:7979` on your phone.
+Then open `http://your-server:7979` on your phone.
 
 `docker-compose.yml` is equivalent, if you have the compose plugin — Unraid
 does not ship with it by default.

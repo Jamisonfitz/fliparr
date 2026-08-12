@@ -62,6 +62,148 @@ function Field({
 const selectClass =
   "w-full cursor-pointer appearance-none rounded-lg border border-edge bg-surface px-4 py-3 font-data text-sm text-screen focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none";
 
+const inputClass =
+  "w-full rounded-lg border border-edge bg-surface px-4 py-3 font-data text-sm text-screen placeholder:text-muted/50 focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none";
+
+/** Address and key, with a Test button so a typo surfaces here, not mid-swipe. */
+function ConnectionSection() {
+  const [url, setUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [keySet, setKeySet] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(
+    null,
+  );
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/connection")
+      .then((r) => r.json())
+      .then((body) => {
+        setUrl(body.url || "");
+        setKeySet(Boolean(body.apiKeySet));
+      })
+      .catch(() => {});
+  }, []);
+
+  async function test() {
+    setTesting(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/connection/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, apiKey }),
+      });
+      const body = await res.json();
+      setResult(
+        res.ok
+          ? { ok: true, text: `Connected to ${body.name} ${body.version}` }
+          : { ok: false, text: body.error },
+      );
+    } catch (err) {
+      setResult({ ok: false, text: (err as Error).message });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function save() {
+    setSaving(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/connection", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, apiKey }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      setKeySet(true);
+      setApiKey("");
+      setResult({ ok: true, text: "Connection saved." });
+    } catch (err) {
+      setResult({ ok: false, text: (err as Error).message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-5 border-b border-edge pb-8">
+      <div>
+        <h2 className="font-data text-[0.62rem] tracking-[0.24em] text-screen uppercase">
+          Radarr connection
+        </h2>
+        <p className="font-body mt-2 text-[0.88rem] leading-relaxed text-muted">
+          Your key is stored on the server and never sent back to this page.
+        </p>
+      </div>
+
+      <Field label="Address">
+        <input
+          className={inputClass}
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="http://192.168.0.10:7878"
+          inputMode="url"
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </Field>
+
+      <Field
+        label="API key"
+        hint={
+          keySet
+            ? "A key is saved. Leave blank to keep it."
+            : "Radarr → Settings → General → API Key."
+        }
+      >
+        <input
+          className={inputClass}
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder={keySet ? "••••••••••••••••" : "Paste your API key"}
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </Field>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void test()}
+          disabled={testing || !url}
+          className="font-data cursor-pointer rounded-full border border-edge px-5 py-2.5 text-[0.6rem] tracking-[0.2em] text-screen uppercase transition-colors hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {testing ? "Testing" : "Test"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || !url}
+          className="font-data cursor-pointer rounded-full border border-approved/50 bg-approved/12 px-5 py-2.5 text-[0.6rem] tracking-[0.2em] text-approved uppercase transition-colors hover:bg-approved/20 focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saving ? "Saving" : "Save connection"}
+        </button>
+      </div>
+
+      {result && (
+        <p
+          role="status"
+          className={`font-body text-[0.88rem] leading-relaxed ${
+            result.ok ? "text-approved" : "text-restricted"
+          }`}
+        >
+          {result.text}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsForm() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [profiles, setProfiles] = useState<QualityProfile[]>([]);
@@ -128,7 +270,9 @@ export default function SettingsForm() {
         </Link>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-5 py-6">
+      <div className="flex flex-col gap-8 overflow-y-auto px-5 py-6">
+        <ConnectionSection />
+
         {error && !settings && (
           <p className="font-body text-[0.95rem] leading-relaxed text-restricted">
             {error}

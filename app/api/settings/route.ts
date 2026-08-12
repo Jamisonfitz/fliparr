@@ -1,5 +1,6 @@
 import { fail } from "@/lib/api";
-import { resolveSettings, saveSettings } from "@/lib/store";
+import { resolveSettings } from "@/lib/settings";
+import { saveSettings } from "@/lib/store";
 import type { MinimumAvailability, MonitorOption, Settings } from "@/lib/types";
 
 const MONITOR: MonitorOption[] = ["movieOnly", "movieAndCollection", "none"];

@@ -118,7 +118,14 @@ export interface SwipeRecord {
   at: string;
 }
 
+/** Where Radarr lives. Set in the app, or seeded from env on first run. */
+export interface Connection {
+  url: string;
+  apiKey: string;
+}
+
 export interface StoreData {
   settings: Settings | null;
+  connection: Connection | null;
   history: SwipeRecord[];
 }

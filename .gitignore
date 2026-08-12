@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -10,36 +8,72 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
 # next.js
 /.next/
 /out/
-
-# production
 /build
+next-env.d.ts
+*.tsbuildinfo
 
-# misc
-.DS_Store
-*.pem
+# testing
+/coverage
 
-# debug
+# ---------------------------------------------------------------------------
+# Anything that could carry a real instance's details.
+# This repo is meant to be publishable at any moment: no keys, no hostnames,
+# no library contents. .env.example is the only env file that ships, and it
+# holds placeholders.
+# ---------------------------------------------------------------------------
+
+# Env files of every flavour
+.env
+.env.*
+!.env.example
+
+# Runtime state: the saved Radarr address, API key, and swipe history
+/data
+/config
+fliparr.json
+*.sqlite
+*.sqlite3
+*.db
+
+# Deploy scripts and compose overrides usually written against a real host
+docker-compose.override.yml
+docker-compose.*.local.yml
+deploy.sh
+deploy.local.*
+*.local.sh
+
+# Captured API responses and scratch debugging output
+*.local.json
+scratch/
+tmp/
+/logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-!.env.example
+# Credentials and keys of any kind
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+secrets.*
+*.secret
 
-# local runtime state (settings + swipe history)
-/data
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
 
-# vercel
+# Deployment platforms
 .vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts

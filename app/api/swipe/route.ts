@@ -1,7 +1,8 @@
 import { fail } from "@/lib/api";
 import { findMovie, markSwiped } from "@/lib/deck";
 import { addExclusion, addMovie } from "@/lib/radarr";
-import { recordSwipe, resolveSettings } from "@/lib/store";
+import { resolveSettings } from "@/lib/settings";
+import { recordSwipe } from "@/lib/store";
 import type { SwipeDirection } from "@/lib/types";
 
 /**

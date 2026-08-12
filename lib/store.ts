@@ -1,18 +1,19 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { getQualityProfiles, getRootFolders } from "./radarr";
-import type { Settings, StoreData, SwipeRecord } from "./types";
+import type { Connection, Settings, StoreData, SwipeRecord } from "./types";
 
 /**
- * Persistence for settings and swipe history: one JSON file at $DATA_DIR.
- * Small enough that a database would be overkill — a settings object plus a
- * capped history list.
+ * Persistence for the Radarr connection, settings, and swipe history: one JSON
+ * file at $DATA_DIR. Small enough that a database would be overkill.
+ *
+ * Deliberately imports nothing from lib/radarr — radarr reads its connection
+ * from here, and a cycle between the two would be fragile.
  */
 
 /** Also the depth of the undo stack. */
 const HISTORY_LIMIT = 50;
 
-const EMPTY: StoreData = { settings: null, history: [] };
+const EMPTY: StoreData = { settings: null, connection: null, history: [] };
 
 function dataDir() {
   return process.env.DATA_DIR || "./data";
@@ -28,6 +29,7 @@ export async function readStore(): Promise<StoreData> {
     const parsed = JSON.parse(raw) as Partial<StoreData>;
     return {
       settings: parsed.settings ?? null,
+      connection: parsed.connection ?? null,
       history: Array.isArray(parsed.history) ? parsed.history : [],
     };
   } catch {
@@ -71,6 +73,24 @@ export function saveSettings(settings: Settings): Promise<StoreData> {
   return updateStore((data) => ({ ...data, settings }));
 }
 
+export function saveConnection(connection: Connection): Promise<StoreData> {
+  return updateStore((data) => ({ ...data, connection }));
+}
+
+/**
+ * The saved connection, or whatever the environment provides. Env acts as the
+ * seed for a fresh container; once saved in the app, the stored value wins so
+ * changing it doesn't need a redeploy.
+ */
+export async function getConnection(): Promise<Connection | null> {
+  const { connection } = await readStore();
+  if (connection?.url && connection.apiKey) return connection;
+
+  const url = process.env.RADARR_URL;
+  const apiKey = process.env.RADARR_API_KEY;
+  return url && apiKey ? { url, apiKey } : null;
+}
+
 export function recordSwipe(record: SwipeRecord): Promise<StoreData> {
   return updateStore((data) => ({
     ...data,
@@ -83,27 +103,4 @@ export function removeSwipe(tmdbId: number): Promise<StoreData> {
     ...data,
     history: data.history.filter((h) => h.tmdbId !== tmdbId),
   }));
-}
-
-/**
- * Settings the user has saved, or sensible defaults pulled live from Radarr
- * (first quality profile, first root folder) so the app works before anyone
- * opens the settings screen.
- */
-export async function resolveSettings(): Promise<Settings> {
-  const { settings } = await readStore();
-  if (settings) return settings;
-
-  const [profiles, roots] = await Promise.all([
-    getQualityProfiles(),
-    getRootFolders(),
-  ]);
-
-  return {
-    qualityProfileId: profiles[0]?.id ?? 1,
-    rootFolderPath: roots[0]?.path ?? "",
-    minimumAvailability: "released",
-    monitor: "movieOnly",
-    searchOnAdd: true,
-  };
 }
