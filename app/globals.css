@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/*
+  Palette is deliberately monochrome: a warm, dark projection-booth charcoal.
+  Colour is reserved for two things that carry meaning — rating chips (each
+  source keeps its own recognisable colour) and the verdict bands.
+*/
+@theme {
+  --color-pit: #100e0f;
+  --color-surface: #1a1719;
+  --color-edge: #2b2629;
+  --color-screen: #f2ede6;
+  --color-muted: #8c8079;
+
+  /* MPAA trailer band cards. */
+  --color-approved: #00843d;
+  --color-restricted: #c1282d;
+
+  /* Rating sources, in their own brand colours. */
+  --color-imdb: #f5c518;
+  --color-tomato: #fa320a;
+
+  --font-display: var(--font-archivo-black), system-ui, sans-serif;
+  --font-body: var(--font-source-serif), Georgia, serif;
+  --font-data: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--color-pit);
+  color: var(--color-screen);
+  /* The deck owns the viewport; the page itself never scrolls. */
+  overflow: hidden;
+}
+
+/* Cards are dragged, so browser text selection and touch panning get in the way. */
+.card-surface {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: pan-y;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
