@@ -34,6 +34,18 @@ export function unmarkSwiped(tmdbId: number) {
   swiped.delete(tmdbId);
 }
 
+/**
+ * Drops the cached list so the next read comes from Radarr.
+ *
+ * Undo needs this. Radarr's recommendation query subtracts the exclusion list
+ * at the SQL level, so a movie excluded before the last fetch was never in the
+ * cached payload — clearing the swiped set alone can't bring it back. Only a
+ * fresh pull can.
+ */
+export function invalidate() {
+  cache = null;
+}
+
 async function load(): Promise<DiscoverMovie[]> {
   inflight ??= getDiscoverMovies()
     .then((items) => {

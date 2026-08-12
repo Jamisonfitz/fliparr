@@ -1,5 +1,5 @@
 import { fail } from "@/lib/api";
-import { findMovie, unmarkSwiped } from "@/lib/deck";
+import { findMovie, invalidate, unmarkSwiped } from "@/lib/deck";
 import { deleteExclusion, deleteMovie } from "@/lib/radarr";
 import { readStore, removeSwipe } from "@/lib/store";
 
@@ -33,13 +33,19 @@ export async function POST(request: Request) {
       await deleteExclusion(entry.radarrId);
     }
 
-    // Both are required: the history entry drives undo, the swiped set drives
-    // deck filtering. Leaving either behind keeps the card invisible.
+    // All three are required: the history entry drives undo, the swiped set
+    // drives deck filtering, and the cache predates the write. Leaving any of
+    // them behind keeps the card invisible.
     await removeSwipe(entry.tmdbId);
     unmarkSwiped(entry.tmdbId);
 
+    // Look the movie up before dropping the cache — if it's still in the
+    // cached payload we can hand it straight back for an instant restore.
+    const movie = await findMovie(entry.tmdbId);
+    invalidate();
+
     return Response.json({
-      movie: await findMovie(entry.tmdbId),
+      movie,
       undone: entry,
       warning:
         entry.direction === "right"
