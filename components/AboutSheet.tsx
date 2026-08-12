@@ -63,7 +63,34 @@ export default function AboutSheet({
         ))}
       </div>
 
-      <div className="mt-8 flex flex-col gap-4 border-t border-edge pt-6 pb-2">
+      {/* Required by TMDB's API terms of use, which ask for this wording
+          prominently in the application itself — not only in the docs. */}
+      <div className="mt-8 border-t border-edge pt-6">
+        <p className="font-body text-[0.82rem] leading-relaxed text-muted">
+          Posters, ratings, and synopses come from{" "}
+          <a
+            href="https://www.themoviedb.org/"
+            target="_blank"
+            rel="noreferrer"
+            className="text-screen/80 underline underline-offset-4 hover:text-screen focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none"
+          >
+            TMDB
+          </a>
+          , by way of{" "}
+          <a
+            href="https://radarr.video/"
+            target="_blank"
+            rel="noreferrer"
+            className="text-screen/80 underline underline-offset-4 hover:text-screen focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none"
+          >
+            Radarr
+          </a>
+          . This product uses TMDB and the TMDB APIs but is not endorsed,
+          certified, or otherwise approved by TMDB.
+        </p>
+      </div>
+
+      <div className="mt-6 flex flex-col gap-4 border-t border-edge pt-6 pb-2">
         <p className="font-data text-[0.6rem] tracking-[0.2em] text-muted uppercase">
           Built by{" "}
           <a
