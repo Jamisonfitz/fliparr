@@ -127,22 +127,43 @@ async function loadSeerrPage(mediaType: MediaType): Promise<DiscoverMovie[]> {
   return lane.inflight;
 }
 
+/** Pages pulled in one refill before giving up, so a run of fully-filtered pages can't spin. */
+const REFILL_PAGE_CAP = 5;
+/** How many fresh, showable cards a refill tries to add. */
+const REFILL_BATCH = 10;
+
 async function getSeerrDeck(
   force: boolean,
   mediaType: MediaType,
 ): Promise<DiscoverMovie[]> {
   const lane = seerr[mediaType];
-  // force ("refresh") means "the deck is thinning, get me more" — advance a page.
-  if (force || lane.items.length === 0) await loadSeerrPage(mediaType);
-  // Seerr has no exclusion list, so our own persistent hidden set is what keeps
-  // a skipped card from coming back next session.
-  const hidden = await getHiddenKeys("seerr");
-  return lane.items.filter(
-    (m) =>
-      !m.isExisting &&
-      !swiped.has(key(mediaType, m.tmdbId)) &&
-      !hidden.has(key(mediaType, m.tmdbId)),
-  );
+  // Seerr has no exclusion list, so our own persistent hidden set (across all
+  // sources — a Radarr exclusion shouldn't resurface here either) is what keeps
+  // a skipped or excluded card from coming back next session.
+  const hidden = await getHiddenKeys();
+  const showable = () =>
+    lane.items.filter(
+      (m) =>
+        !m.isExisting &&
+        !swiped.has(key(mediaType, m.tmdbId)) &&
+        !hidden.has(key(mediaType, m.tmdbId)),
+    );
+
+  if (lane.items.length === 0) await loadSeerrPage(mediaType);
+
+  // force ("refresh") means the deck is thinning — pull pages until we've added a
+  // batch of genuinely showable cards, so a page that's entirely filtered out
+  // (existing/skipped/hidden) doesn't leave the deck stuck.
+  if (force) {
+    const target = showable().length + REFILL_BATCH;
+    for (let i = 0; i < REFILL_PAGE_CAP && showable().length < target; i++) {
+      const before = lane.items.length;
+      await loadSeerrPage(mediaType);
+      if (lane.items.length === before) break; // no new items upstream — stop
+    }
+  }
+
+  return showable();
 }
 
 /** Drops all in-memory deck state so a reset's un-hidden titles resurface now, not next restart. */

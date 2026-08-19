@@ -25,8 +25,10 @@ import type {
  * rejects the write, because waiting on a round trip would kill the pace.
  */
 
-/** Under this many cards left, quietly pull a fresh deck in the background. */
+/** Under this many visible cards, quietly pull a fresh deck in the background. */
 const REFILL_AT = 15;
+/** Background refills to attempt before giving up when the deck won't grow (e.g. a very strict filter). */
+const REFILL_MAX_TRIES = 6;
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -45,7 +47,11 @@ export default function SwipeDeck() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
   const [exitDirection, setExitDirection] = useState<SwipeDirection | null>(null);
-  const [undoDepth, setUndoDepth] = useState(0);
+  // Per-tab, so undo reverses your last action on the tab you're looking at.
+  const [undoDepth, setUndoDepth] = useState<Record<MediaType, number>>({
+    movie: 0,
+    tv: 0,
+  });
   const [undoing, setUndoing] = useState(false);
   const [notice, setNotice] = useState("");
   const [genres, setGenres] = useState<string[]>([]);
@@ -57,6 +63,9 @@ export default function SwipeDeck() {
 
   /** A ref, not state: the refill guard never affects what's rendered. */
   const refilling = useRef(false);
+  /** Consecutive background refills that didn't grow the visible deck — bounds the search. */
+  const refillTries = useRef(0);
+  const prevVisibleLen = useRef(0);
 
   /**
    * What's actually on screen. `deck` stays whole so the filter is reversible
@@ -116,7 +125,8 @@ export default function SwipeDeck() {
 
       setExitDirection(direction);
       setDeck((d) => d.filter((m) => m.tmdbId !== movie.tmdbId));
-      setUndoDepth((n) => n + 1);
+      setUndoDepth((d) => ({ ...d, [movie.mediaType]: d[movie.mediaType] + 1 }));
+      refillTries.current = 0; // a swipe means keep feeding the deck
 
       try {
         await call("/api/swipe", {
@@ -131,7 +141,10 @@ export default function SwipeDeck() {
       } catch (err) {
         // The write was refused, so put the card back rather than losing it.
         setDeck((d) => [movie, ...d]);
-        setUndoDepth((n) => n - 1);
+        setUndoDepth((d) => ({
+          ...d,
+          [movie.mediaType]: Math.max(0, d[movie.mediaType] - 1),
+        }));
         setNotice((err as Error).message);
       }
     },
@@ -139,17 +152,20 @@ export default function SwipeDeck() {
   );
 
   const undo = useCallback(async () => {
-    if (undoDepth === 0 || undoing) return;
+    if (undoDepth[mediaType] === 0 || undoing) return;
     setUndoing(true);
     try {
       const { movie, warning } = await call<{
         movie?: DiscoverMovie;
         warning?: string;
-      }>("/api/undo", { method: "POST" });
-      // The swipe is reversed server-side regardless; only re-show the card if
-      // it belongs to the tab we're on (undo can span a Movies/TV switch).
+      }>("/api/undo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Scope to this tab: undo the last thing done here, not on the other tab.
+        body: JSON.stringify({ mediaType }),
+      });
       if (movie && movie.mediaType === mediaType) setDeck((d) => [movie, ...d]);
-      setUndoDepth((n) => Math.max(0, n - 1));
+      setUndoDepth((d) => ({ ...d, [mediaType]: Math.max(0, d[mediaType] - 1) }));
       if (warning) setNotice(warning);
     } catch (err) {
       setNotice((err as Error).message);
@@ -192,18 +208,32 @@ export default function SwipeDeck() {
     }
   }, [deck, mergeNew, deckUrl]);
 
-  // Every swipe frees a slot in Radarr's top 100, so a refresh brings genuinely
-  // new titles rather than the same list again.
+  // A fresh pull brings genuinely new titles — Radarr promotes a new candidate
+  // per freed slot, Seerr advances a page. Keyed on what's *visible*, so a genre
+  // or rating filter that thins the deck keeps pulling instead of dead-ending on
+  // "Nothing matches". Reset the try counter whenever the visible deck grows.
+  useEffect(() => {
+    if (visible.length > prevVisibleLen.current) refillTries.current = 0;
+    prevVisibleLen.current = visible.length;
+  }, [visible.length]);
+
+  // A new tab or filter deserves a fresh search budget.
+  useEffect(() => {
+    refillTries.current = 0;
+  }, [genres, rating, mediaType]);
+
   useEffect(() => {
     if (
       status !== "ready" ||
       refilling.current ||
       deck.length === 0 ||
-      deck.length >= REFILL_AT
+      visible.length >= REFILL_AT ||
+      refillTries.current >= REFILL_MAX_TRIES // dry — wait for a swipe or filter change
     ) {
       return;
     }
     refilling.current = true;
+    refillTries.current += 1;
     call<{ movies: DiscoverMovie[] }>(deckUrl(true))
       .then(({ movies }) => mergeNew(movies))
       .catch(() => {
@@ -212,7 +242,7 @@ export default function SwipeDeck() {
       .finally(() => {
         refilling.current = false;
       });
-  }, [deck.length, status, mergeNew, deckUrl]);
+  }, [deck.length, visible.length, status, mergeNew, deckUrl]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -423,7 +453,7 @@ export default function SwipeDeck() {
             onReject={() => void commit("left")}
             onApprove={() => void commit("right")}
             onUndo={() => void undo()}
-            canUndo={undoDepth > 0}
+            canUndo={undoDepth[mediaType] > 0}
             disabled={status !== "ready" || visible.length === 0}
             rejectLabel={vocab?.rejectLabel}
             approveLabel={vocab?.approveLabel}

@@ -40,11 +40,21 @@ function filePath() {
   return path.join(dataDir(), "fliparr.json");
 }
 
+/**
+ * In-memory copy of the store. All writes go through this module and refresh it,
+ * so reads (including the hidden-list filter on every deck fetch) don't re-parse
+ * the JSON each time — the hidden list is unbounded and would otherwise grow into
+ * a per-fetch cost. Only stale if the file is edited out from under a running
+ * process, which Fliparr never does.
+ */
+let cachedStore: StoreData | null = null;
+
 export async function readStore(): Promise<StoreData> {
+  if (cachedStore) return cachedStore;
   try {
     const raw = await readFile(filePath(), "utf8");
     const parsed = JSON.parse(raw) as Partial<StoreData>;
-    return {
+    cachedStore = {
       settings: parsed.settings ?? null,
       connection: parsed.connection ?? null,
       seerr: parsed.seerr ?? null,
@@ -53,8 +63,9 @@ export async function readStore(): Promise<StoreData> {
     };
   } catch {
     // Missing or corrupt: fall back to defaults rather than failing to boot.
-    return { ...EMPTY };
+    cachedStore = { ...EMPTY };
   }
+  return cachedStore;
 }
 
 /**
@@ -76,6 +87,7 @@ async function write(data: StoreData): Promise<void> {
   const tmp = path.join(dir, `.fliparr.${process.pid}.tmp`);
   await writeFile(tmp, JSON.stringify(data, null, 2), "utf8");
   await rename(tmp, filePath());
+  cachedStore = data; // keep the in-memory copy in sync with disk
 }
 
 export function updateStore(
@@ -185,12 +197,13 @@ export async function getHidden(): Promise<HiddenItem[]> {
   return (await readStore()).hidden;
 }
 
-/** The "mediaType:tmdbId" keys hidden for a source — what the deck filters against. */
-export async function getHiddenKeys(source: DeckSource): Promise<Set<string>> {
+/**
+ * The "mediaType:tmdbId" keys the deck filters against. With no source, returns
+ * everything Fliparr has hidden — so a title you rejected on one source stays
+ * gone on the other (a Radarr exclusion won't resurface in the Seerr deck).
+ */
+export async function getHiddenKeys(source?: DeckSource): Promise<Set<string>> {
   const { hidden } = await readStore();
-  return new Set(
-    hidden
-      .filter((h) => h.source === source)
-      .map((h) => hiddenKey(h.mediaType, h.tmdbId)),
-  );
+  const items = source ? hidden.filter((h) => h.source === source) : hidden;
+  return new Set(items.map((h) => hiddenKey(h.mediaType, h.tmdbId)));
 }
