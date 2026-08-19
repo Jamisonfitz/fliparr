@@ -223,6 +223,126 @@ function ConnectionSection({ type }: { type: "radarr" | "seerr" }) {
   );
 }
 
+/**
+ * Start-over controls. Seerr has no exclusion list, so Fliparr keeps its own
+ * record of what you've skipped — this is where you wipe it to review everything
+ * again, plus a way to drop the Radarr exclusions Fliparr itself created.
+ */
+function ResetSection() {
+  const [counts, setCounts] = useState<{ skipped: number; radarrExclusions: number } | null>(
+    null,
+  );
+  const [busy, setBusy] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function loadCounts() {
+    try {
+      const body = await fetch("/api/reset").then((r) => r.json());
+      if (!body.error) setCounts(body);
+    } catch {
+      // Non-fatal — the buttons just won't show counts.
+    }
+  }
+
+  useEffect(() => {
+    void loadCounts();
+  }, []);
+
+  async function reset(target: "skipped" | "radarr-exclusions", confirmText: string) {
+    if (!window.confirm(confirmText)) return;
+    setBusy(target);
+    setNotice("");
+    try {
+      const res = await fetch("/api/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Reset failed.");
+      setNotice(
+        target === "skipped"
+          ? `Cleared ${body.cleared} skipped ${body.cleared === 1 ? "title" : "titles"} — they'll appear in the deck again.`
+          : `Removed ${body.deleted} of ${body.cleared} Radarr ${body.cleared === 1 ? "exclusion" : "exclusions"}.`,
+      );
+      await loadCounts();
+    } catch (err) {
+      setNotice((err as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  const btn =
+    "font-data cursor-pointer rounded-full border border-restricted/45 px-4 py-2 text-[0.6rem] tracking-[0.18em] text-restricted uppercase transition-colors hover:bg-restricted/12 focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-30";
+
+  return (
+    <div className="flex flex-col gap-5 border-b border-edge pb-8">
+      <div>
+        <h2 className="font-data text-[0.62rem] tracking-[0.24em] text-screen uppercase">
+          Start over
+        </h2>
+        <p className="font-body mt-2 text-[0.88rem] leading-relaxed text-muted">
+          Fliparr remembers what you pass on so it doesn&apos;t serve it up again.
+          Wipe that memory to go back through everything.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <span className="font-body text-[0.9rem] text-screen/90">
+          Skipped titles{" "}
+          <span className="text-muted tabular-nums">({counts?.skipped ?? 0})</span>
+          <span className="mt-0.5 block font-body text-[0.8rem] text-muted">
+            Seerr cards you swiped left. Clearing brings them all back.
+          </span>
+        </span>
+        <button
+          type="button"
+          className={btn}
+          disabled={busy !== "" || !counts?.skipped}
+          onClick={() =>
+            reset(
+              "skipped",
+              `Bring back all ${counts?.skipped ?? 0} skipped titles? They'll appear in the deck again.`,
+            )
+          }
+        >
+          {busy === "skipped" ? "Resetting" : "Reset"}
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <span className="font-body text-[0.9rem] text-screen/90">
+          Radarr exclusions{" "}
+          <span className="text-muted tabular-nums">({counts?.radarrExclusions ?? 0})</span>
+          <span className="mt-0.5 block font-body text-[0.8rem] text-muted">
+            Only the ones Fliparr added — your other Radarr exclusions are untouched.
+          </span>
+        </span>
+        <button
+          type="button"
+          className={btn}
+          disabled={busy !== "" || !counts?.radarrExclusions}
+          onClick={() =>
+            reset(
+              "radarr-exclusions",
+              `Delete the ${counts?.radarrExclusions ?? 0} Radarr exclusion(s) Fliparr created? Those movies can be recommended again. Your other Radarr exclusions are not affected.`,
+            )
+          }
+        >
+          {busy === "radarr-exclusions" ? "Resetting" : "Reset"}
+        </button>
+      </div>
+
+      {notice && (
+        <p role="status" className="font-body text-[0.88rem] leading-relaxed text-approved">
+          {notice}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsForm() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [profiles, setProfiles] = useState<QualityProfile[]>([]);
@@ -298,6 +418,7 @@ export default function SettingsForm() {
       <div className="flex flex-col gap-8 overflow-y-auto px-5 py-6">
         <ConnectionSection type="radarr" />
         <ConnectionSection type="seerr" />
+        <ResetSection />
 
         {error && !settings && (
           <p className="font-body text-[0.95rem] leading-relaxed text-restricted">

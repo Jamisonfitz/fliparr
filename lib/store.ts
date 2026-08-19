@@ -3,6 +3,8 @@ import path from "node:path";
 import type {
   Connection,
   DeckSource,
+  HiddenItem,
+  MediaType,
   Settings,
   StoreData,
   SwipeRecord,
@@ -24,7 +26,11 @@ const EMPTY: StoreData = {
   connection: null,
   seerr: null,
   history: [],
+  hidden: [],
 };
+
+const hiddenKey = (mediaType: MediaType, tmdbId: number) =>
+  `${mediaType}:${tmdbId}`;
 
 function dataDir() {
   return process.env.DATA_DIR || "./data";
@@ -43,6 +49,7 @@ export async function readStore(): Promise<StoreData> {
       connection: parsed.connection ?? null,
       seerr: parsed.seerr ?? null,
       history: Array.isArray(parsed.history) ? parsed.history : [],
+      hidden: Array.isArray(parsed.hidden) ? parsed.hidden : [],
     };
   } catch {
     // Missing or corrupt: fall back to defaults rather than failing to boot.
@@ -135,4 +142,55 @@ export function removeSwipe(tmdbId: number): Promise<StoreData> {
     ...data,
     history: data.history.filter((h) => h.tmdbId !== tmdbId),
   }));
+}
+
+/**
+ * Fliparr's own persistent "don't show again" list. Radarr's exclusion list
+ * covers its source; this is what keeps a Seerr skip from reappearing next
+ * session (and records Radarr exclusions Fliparr made, so a reset can undo just
+ * those rather than the user's entire exclusion history).
+ */
+export function addHidden(item: HiddenItem): Promise<StoreData> {
+  return updateStore((data) => {
+    const k = hiddenKey(item.mediaType, item.tmdbId);
+    if (data.hidden.some((h) => hiddenKey(h.mediaType, h.tmdbId) === k)) {
+      return data; // already hidden — don't duplicate
+    }
+    return { ...data, hidden: [item, ...data.hidden] };
+  });
+}
+
+export function removeHidden(
+  tmdbId: number,
+  mediaType: MediaType,
+): Promise<StoreData> {
+  const k = hiddenKey(mediaType, tmdbId);
+  return updateStore((data) => ({
+    ...data,
+    hidden: data.hidden.filter((h) => hiddenKey(h.mediaType, h.tmdbId) !== k),
+  }));
+}
+
+/** Clears the hidden entries for one source (a reset). Returns the removed ones. */
+export async function clearHidden(source: DeckSource): Promise<HiddenItem[]> {
+  let removed: HiddenItem[] = [];
+  await updateStore((data) => {
+    removed = data.hidden.filter((h) => h.source === source);
+    return { ...data, hidden: data.hidden.filter((h) => h.source !== source) };
+  });
+  return removed;
+}
+
+export async function getHidden(): Promise<HiddenItem[]> {
+  return (await readStore()).hidden;
+}
+
+/** The "mediaType:tmdbId" keys hidden for a source — what the deck filters against. */
+export async function getHiddenKeys(source: DeckSource): Promise<Set<string>> {
+  const { hidden } = await readStore();
+  return new Set(
+    hidden
+      .filter((h) => h.source === source)
+      .map((h) => hiddenKey(h.mediaType, h.tmdbId)),
+  );
 }

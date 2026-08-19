@@ -3,7 +3,7 @@ import { findMovie, markSwiped } from "@/lib/deck";
 import { addExclusion, addMovie } from "@/lib/radarr";
 import { requestSeerr } from "@/lib/seerr";
 import { resolveSettings } from "@/lib/settings";
-import { recordSwipe } from "@/lib/store";
+import { addHidden, recordSwipe } from "@/lib/store";
 import type { MediaType, SwipeDirection } from "@/lib/types";
 
 /**
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
           : (await addExclusion(movie)).id;
     }
 
+    const at = new Date().toISOString();
     markSwiped(tmdbId, mediaType);
     await recordSwipe({
       tmdbId,
@@ -63,8 +64,22 @@ export async function POST(request: Request) {
       radarrId,
       source: movie.source,
       mediaType,
-      at: new Date().toISOString(),
+      at,
     });
+
+    // A left swipe is a "don't show again": a Seerr skip (radarrId 0) or a Radarr
+    // exclusion Fliparr made. Persist it so it survives a restart and can be reset.
+    if (direction === "left") {
+      await addHidden({
+        tmdbId,
+        mediaType,
+        source: movie.source,
+        radarrId,
+        title: movie.title,
+        year: movie.year,
+        at,
+      });
+    }
 
     return Response.json({ ok: true, radarrId });
   } catch (err) {

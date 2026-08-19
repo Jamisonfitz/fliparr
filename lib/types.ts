@@ -152,11 +152,29 @@ export interface Connection {
   apiKey: string;
 }
 
+/**
+ * A title Fliparr is keeping out of the deck. Radarr's own exclusion list
+ * handles its source, but Seerr has none — so we persist our own, keyed by
+ * mediaType + tmdbId, or a left-swiped Seerr card reappears every session.
+ * `radarrId` is the Radarr exclusion id (for source "radarr", so a reset can
+ * delete it); 0 for a Seerr skip.
+ */
+export interface HiddenItem {
+  tmdbId: number;
+  mediaType: MediaType;
+  source: DeckSource;
+  radarrId: number;
+  title: string;
+  year: number;
+  at: string;
+}
+
 export interface StoreData {
   settings: Settings | null;
   connection: Connection | null;
   seerr: Connection | null;
   history: SwipeRecord[];
+  hidden: HiddenItem[];
 }
 
 /** A minimum-score gate the deck applies client-side. `any` is off. */

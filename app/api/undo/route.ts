@@ -2,7 +2,7 @@ import { fail } from "@/lib/api";
 import { findMovie, invalidate, unmarkSwiped } from "@/lib/deck";
 import { deleteExclusion, deleteMovie } from "@/lib/radarr";
 import { deleteSeerrRequest } from "@/lib/seerr";
-import { readStore, removeSwipe } from "@/lib/store";
+import { readStore, removeHidden, removeSwipe } from "@/lib/store";
 
 /**
  * POST /api/undo            reverses the most recent swipe
@@ -46,6 +46,9 @@ export async function POST(request: Request) {
     const mediaType = entry.mediaType ?? "movie";
     await removeSwipe(entry.tmdbId);
     unmarkSwiped(entry.tmdbId, mediaType);
+    // A left swipe added a hidden entry; undoing it must clear that too, or the
+    // card stays out of the deck.
+    await removeHidden(entry.tmdbId, mediaType);
 
     // Look the card up before dropping the cache — if it's still in the
     // cached payload we can hand it straight back for an instant restore.

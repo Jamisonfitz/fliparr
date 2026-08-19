@@ -1,6 +1,6 @@
 import { getDiscoverMovies } from "./radarr";
 import { getSeerrDiscover } from "./seerr";
-import { getSource } from "./store";
+import { getHiddenKeys, getSource } from "./store";
 import type { DiscoverMovie, MediaType } from "./types";
 
 /**
@@ -134,9 +134,22 @@ async function getSeerrDeck(
   const lane = seerr[mediaType];
   // force ("refresh") means "the deck is thinning, get me more" — advance a page.
   if (force || lane.items.length === 0) await loadSeerrPage(mediaType);
+  // Seerr has no exclusion list, so our own persistent hidden set is what keeps
+  // a skipped card from coming back next session.
+  const hidden = await getHiddenKeys("seerr");
   return lane.items.filter(
-    (m) => !m.isExisting && !swiped.has(key(mediaType, m.tmdbId)),
+    (m) =>
+      !m.isExisting &&
+      !swiped.has(key(mediaType, m.tmdbId)) &&
+      !hidden.has(key(mediaType, m.tmdbId)),
   );
+}
+
+/** Drops all in-memory deck state so a reset's un-hidden titles resurface now, not next restart. */
+export function resetDeckState() {
+  swiped.clear();
+  cache = null;
+  resetSeerr();
 }
 
 /**
