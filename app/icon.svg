@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fliparr">
+  <defs>
+    <linearGradient id="fg" x1="150" y1="120" x2="360" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3DE08A"/>
+      <stop offset="1" stop-color="#22B368"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#141922"/>
+      <stop offset="1" stop-color="#0B0E13"/>
+    </linearGradient>
+  </defs>
+
+  <!-- app background -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+  <rect x="16.5" y="16.5" width="479" height="479" rx="111.5" fill="none" stroke="#2A313C" stroke-width="1"/>
+
+  <!-- back card of the deck -->
+  <rect x="150" y="150" width="212" height="212" rx="40" transform="rotate(-14 256 256)" fill="#2E353F"/>
+
+  <!-- front card, mid-flip: foreshortened toward the fold, green accent -->
+  <g transform="rotate(12 256 256)">
+    <rect x="196" y="150" width="120" height="212" rx="36" fill="url(#fg)"/>
+    <!-- fold highlight suggesting the flip -->
+    <rect x="196" y="150" width="26" height="212" rx="12" fill="#54EE9C" opacity="0.55"/>
+  </g>
+</svg>
