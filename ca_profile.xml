@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<CommunityApplications>
+  <Profile>
+Apps by Jamison Fitz. Currently home to **Fliparr** — Tinder-style swiping for Radarr's movie recommendations. Radarr's Discover tab is a wall of text; Fliparr turns it into a deck of cards, one film per phone screen with poster, ratings, genres, synopsis, and trailer. Swipe right to add a movie to your library, monitored and searching; swipe left to write a permanent Import List Exclusion so it never comes back. Undo up to 50 deep. Open source (GPL-3.0), self-hosted, LAN-only — it talks to your Radarr and nothing else.
+
+Support: https://github.com/Jamisonfitz/fliparr/issues
+  </Profile>
+  <Icon>https://raw.githubusercontent.com/Jamisonfitz/fliparr/main/assets/fliparr-icon.png</Icon>
+  <WebPage>https://github.com/Jamisonfitz/fliparr</WebPage>
+  <Photo>https://raw.githubusercontent.com/Jamisonfitz/fliparr/main/docs/screenshots/deck.png</Photo>
+  <Photo>https://raw.githubusercontent.com/Jamisonfitz/fliparr/main/docs/screenshots/swipe-approved.png</Photo>
+  <Photo>https://raw.githubusercontent.com/Jamisonfitz/fliparr/main/docs/screenshots/genre-filter.png</Photo>
+  <Photo>https://raw.githubusercontent.com/Jamisonfitz/fliparr/main/docs/screenshots/settings.png</Photo>
+</CommunityApplications>
