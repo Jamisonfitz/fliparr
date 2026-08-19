@@ -73,3 +73,18 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Keep the Docker Hub page's text in sync with the repo, so the listing is
+      # maintained in git and never hand-edited in the web UI. Only on main, only
+      # when Docker Hub is configured.
+      - uses: peter-evans/dockerhub-description@v4
+        if: >-
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && steps.publish.outputs.enabled == 'true'
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ vars.DOCKERHUB_USERNAME }}/fliparr
+          short-description: "Tinder-style swiping for Radarr movie recommendations — right adds, left excludes forever."
+          readme-filepath: ./DOCKERHUB.md
