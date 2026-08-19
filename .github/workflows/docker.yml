@@ -24,11 +24,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Docker Hub is the public pull path (no login) and what Unraid Community
+      # Apps points at. Needs repo secrets DOCKERHUB_USERNAME + DOCKERHUB_TOKEN.
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
           # Lowercased by the action — GHCR rejects uppercase repository names.
-          images: ghcr.io/${{ github.repository }}
+          images: |
+            docker.io/jamisonfitz/fliparr
+            ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

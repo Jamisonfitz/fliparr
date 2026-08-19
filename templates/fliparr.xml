@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Fliparr</Name>
+  <Repository>jamisonfitz/fliparr:latest</Repository>
+  <Registry>https://hub.docker.com/r/jamisonfitz/fliparr</Registry>
+  <TemplateURL>https://raw.githubusercontent.com/Jamisonfitz/fliparr/main/templates/fliparr.xml</TemplateURL>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Jamisonfitz/fliparr/issues</Support>
+  <Project>https://github.com/Jamisonfitz/fliparr</Project>
+  <Overview>Fliparr is Tinder-style swiping for Radarr's movie recommendations. Radarr's Discover tab is a wall of text where every suggestion needs a checkbox and a trip to the footer bar; Fliparr turns it into a deck of cards. One film fills your phone screen &#8212; poster, IMDb/Rotten Tomatoes/Metacritic ratings, genres, synopsis, trailer &#8212; and you decide with a swipe.&#10;&#10;Swipe right to add the movie to Radarr, monitored, with a release search started. Swipe left to write it to Radarr's Import List Exclusions so it never comes back. Undo reverses either one, up to 50 swipes deep. Watch trailers in a sheet without leaving the deck, filter by genre, and review a reversible history of every decision.&#10;&#10;Set Radarr's address and API key in the app's Settings screen with a Test button; quality profile, root folder, monitor mode and search-on-add are read live from your Radarr. Runs LAN-only with no login and no cloud &#8212; your API key stays server-side and is never sent to the browser. Requires a Radarr v3 instance with some movies already in the library.&#10;&#10;Point Radarr URL at host.docker.internal (this template adds the host-gateway mapping) rather than the host LAN IP, which can break on a container recreate.</Overview>
+  <Category>MediaApp:Video Tools:</Category>
+  <Icon>https://raw.githubusercontent.com/Jamisonfitz/fliparr/main/assets/fliparr-icon.png</Icon>
+  <WebUI>http://[IP]:[PORT:7979]/</WebUI>
+  <ExtraParams>--restart unless-stopped --add-host host.docker.internal:host-gateway</ExtraParams>
+  <Config Name="WebUI Port" Target="3000" Default="7979" Mode="tcp" Description="Port for the Fliparr web UI. Clear of Radarr (7878), Sonarr (8989), Prowlarr (9696)." Type="Port" Display="always" Required="true" Mask="false">7979</Config>
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/fliparr" Mode="rw" Description="Stores the Radarr connection, settings, and undo history. Mount it or these reset on recreate." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/fliparr</Config>
+  <Config Name="Radarr URL" Target="RADARR_URL" Default="http://host.docker.internal:7878" Mode="" Description="Radarr's address. Keep host.docker.internal if Radarr runs on this Unraid server; otherwise use its LAN IP. Seeds a fresh install &#8212; once you save a connection in the app, that one wins." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="Radarr API Key" Target="RADARR_API_KEY" Default="" Mode="" Description="Radarr &#8594; Settings &#8594; General &#8594; API Key. Treat it like a password. Seeds a fresh install; can also be set in the app's Settings screen." Type="Variable" Display="always" Required="false" Mask="true"/>
+</Container>

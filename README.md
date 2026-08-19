@@ -141,7 +141,7 @@ docker run -d \
   -e RADARR_URL=http://host.docker.internal:7878 \
   -e RADARR_API_KEY=your_api_key_here \
   -v /path/to/appdata/fliparr:/config \
-  ghcr.io/jamisonfitz/fliparr:latest
+  jamisonfitz/fliparr:latest
 ```
 
 Then open `http://your-server:7979`.
@@ -157,7 +157,7 @@ Then open `http://your-server:7979`.
 ```yaml
 services:
   fliparr:
-    image: ghcr.io/jamisonfitz/fliparr:latest
+    image: jamisonfitz/fliparr:latest
     container_name: fliparr
     restart: unless-stopped
     ports:
@@ -193,8 +193,9 @@ npm run dev                    # http://localhost:3000
 docker build -t fliparr:latest .
 ```
 
-> While the repository is private, its GHCR package is private too, so
-> `docker pull` needs `docker login ghcr.io`. Building from source avoids that.
+> The published image is public on Docker Hub as `jamisonfitz/fliparr`, so
+> `docker pull jamisonfitz/fliparr` needs no login. The same image is mirrored
+> to `ghcr.io/jamisonfitz/fliparr` if you prefer GHCR.
 
 ---
 
@@ -243,11 +244,16 @@ Only if **Search on add** is enabled, which it is by default. Turn it off in
 Settings to add movies without hunting for a release.
 
 **Does it support Sonarr / TV shows?**
-Not today.
+Not today — it is on the [Roadmap](#roadmap).
 
 **Does it work with Overseerr, Jellyseerr, or Seerr?**
-Not today. Those tools manage requests and have no exclusion concept, which is
-half of what Fliparr does.
+Not today, but it is the next thing planned — see the [Roadmap](#roadmap).
+A Seerr feed is a natural second deck: Seerr's own Discover surfaces trending
+and popular titles that Radarr's library-derived recommendations never will,
+and a right swipe would file a Seerr request instead of a direct Radarr add.
+The wrinkle is that Seerr has no exclusion concept, so a left swipe would either
+just skip the card or still write the Radarr exclusion — a design choice to
+settle when the feed lands.
 
 **Why is the first load slow?**
 Radarr fetches metadata for all ~100 recommendations from TMDB on every call to
@@ -284,6 +290,28 @@ to true, "undo" would permanently exclude the film — the exact opposite of wha
 the button says.
 
 State lives in a single JSON file in `DATA_DIR`. No database.
+
+---
+
+## Roadmap
+
+Fliparr does one thing well today — swiping Radarr's Discover queue. These are
+the directions it is likely to grow, roughly in order:
+
+- **Feed from Seerr (Overseerr / Jellyseerr).** Add a second deck sourced from
+  Seerr's Discover — trending, popular, and upcoming titles that Radarr's
+  library-derived recommendations never surface. A right swipe files a Seerr
+  request (or adds straight to Radarr); the left-swipe behaviour is an open
+  design question since Seerr has no exclusion list. Picking a source would be a
+  toggle in Settings, so Radarr-only installs are unaffected.
+- **TV via Sonarr.** The same swipe model over Sonarr's series recommendations,
+  with add-and-monitor and series-level exclusions.
+- **More feed sources over time** — the deck is source-agnostic internally, so
+  Trakt lists and plain TMDB Discover are candidates once the Seerr path proves
+  the second-source pattern.
+
+Nothing here changes the current Radarr behaviour; new sources are opt-in.
+Issues and PRs that move these along are welcome.
 
 ---
 
