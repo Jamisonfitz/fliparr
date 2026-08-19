@@ -2,10 +2,11 @@
 
 # Fliparr
 
-### Tinder-style swiping for Radarr movie recommendations
+### Tinder-style swiping for your Radarr & Seerr queue — movies *and* TV
 
-**Swipe right to add a movie to Radarr. Swipe left to exclude it forever.**
-A self-hosted movie discovery app for your homelab, built for your phone.
+**Swipe right to add or request, left to pass.** Movies from Radarr's
+recommendations or Seerr's endless discover; **TV from Seerr**. A self-hosted
+discovery app for your homelab, built for your phone.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-00843d.svg)](https://www.gnu.org/licenses/gpl-3.0)
 ![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
@@ -21,18 +22,19 @@ A self-hosted movie discovery app for your homelab, built for your phone.
 
 ## What is Fliparr?
 
-Radarr's **Discover** tab is a wall of text. Every recommendation needs a
-checkbox tick and a trip down to the footer bar to either add it or exclude
-it, and there is no fast way to work through hundreds of them.
+Finding things to add to your library is a wall of text — Radarr's Discover tab,
+Seerr's grid — every title a few taps to add, request, or dismiss, with no fast
+way to work through hundreds of them.
 
-Fliparr turns that list into a deck of cards. One film fills your phone screen
-— poster, ratings, genres, synopsis, trailer — and you decide with a swipe.
+Fliparr turns that into a deck of cards. One title fills your phone screen —
+poster, ratings, genres, synopsis, trailer — and you decide with a swipe. It
+covers **movies and TV**, sourced from **Radarr** and **Seerr**.
 
-| Gesture | What happens in Radarr |
-| --- | --- |
-| **Swipe right** | Movie is added to your library, monitored, and a release search starts |
-| **Swipe left** | Movie is written to **Import List Exclusions** — it never comes back, in Fliparr *or* in Radarr's own Discover tab |
-| **Undo** | Reverses either one, up to 50 swipes deep |
+| Gesture | Radarr movie | Seerr movie / TV |
+| --- | --- | --- |
+| **Swipe right** | Added to your library, monitored, release search starts | Files a Seerr request (Seerr routes it on to Radarr / Sonarr) |
+| **Swipe left** | Written to **Import List Exclusions** — never comes back | Skips the card (Seerr has no exclusion list) |
+| **Undo** | Reverses the last action, up to 50 deep | Cancels the request, or un-skips |
 
 Unlike "what should we watch tonight" apps, Fliparr is a **library curation
 tool**. It decides what *enters* your collection, not what you play next.
@@ -62,14 +64,25 @@ to configure.
 <img src="docs/screenshots/trailer.png" width="320" alt="Movie trailer playing in a sheet over the Fliparr deck">
 </div>
 
-### Filter by genre
+### Movies and TV, from Radarr or Seerr
+
+A **Movies / TV** toggle sits under the header. Movies come from your chosen
+source — Radarr's library-derived recommendations, or Seerr's endless discover.
+**TV comes from Seerr** (Overseerr / Jellyseerr), because Sonarr has no
+recommendation feed to swipe. A right swipe on a Seerr card files a request that
+Seerr routes on to Radarr/Sonarr under its own profiles; a left swipe just skips
+it. Each card knows where it came from, so the buttons say the right thing —
+*Add* vs *Request*, *Exclude* vs *Skip*.
+
+### Filter by genre and rating
 
 Optional and off by default. Every genre in the current deck with a live count;
 picking several widens the deck rather than narrowing it, so **Horror +
-Thriller** shows either.
+Thriller** shows either. Add a **minimum rating** gate — IMDb, Rotten Tomatoes,
+Metacritic, or TMDB — to skim only the good stuff.
 
 <div align="center">
-<img src="docs/screenshots/genre-filter.png" width="320" alt="Genre filter sheet listing movie genres with counts">
+<img src="docs/screenshots/genre-filter.png" width="320" alt="Filter sheet listing genres with counts and a minimum rating gate">
 </div>
 
 ### Reversible history
@@ -98,7 +111,7 @@ live from your Radarr.
 - **Ratings at a glance** from IMDb, Rotten Tomatoes, and Metacritic, each in
   its own colour
 - **Mobile-first** dark interface designed for a phone in a dark room
-- **No login, no account, no telemetry** — it talks to your Radarr and nothing else
+- **No login, no account, no telemetry** — it talks to your own services and nothing else
 
 ---
 
@@ -106,25 +119,34 @@ live from your Radarr.
 
 This is the part worth understanding, because it is why the queue never runs dry.
 
-Radarr builds recommendations with a live SQL query over every movie you own,
-subtracting your library and your exclusion list, capped at the top 100 and
-ranked by how many of your own films recommend each candidate.
+**From Radarr**, recommendations come from a live SQL query over every movie you
+own, subtracting your library and your exclusion list, capped at the top 100 and
+ranked by how many of your own films recommend each candidate. The candidate
+pool is far larger than 100 — **every swipe frees a slot and promotes the
+next-best candidate into it**, so it keeps producing new material rather than
+draining to zero.
 
-The candidate pool is far larger than 100. **Every swipe frees a slot and
-promotes the next-best candidate into it.** So this is not a 100-item queue
-that drains to zero — it keeps producing new material as you work. Fliparr
-pulls a fresh deck automatically once you drop below 15 cards, and the **Load
-more** button does it on demand.
+**From Seerr**, the movie and TV discover feeds are hundreds of pages of TMDB
+popular titles — effectively bottomless. Fliparr accumulates them page by page as
+you swipe.
+
+Either way, Fliparr pulls more automatically once you drop below 15 cards, and
+the **Load more** button does it on demand.
 
 ---
 
 ## Requirements
 
-- **Radarr v3 API** — developed and tested against Radarr **6.3.0**
+- **Radarr v3 API** — developed and tested against Radarr **6.3.0**. Needed for
+  the Radarr movie source; some movies already in your library, since
+  recommendations are derived from what you own.
+- **Overseerr or Jellyseerr** (a "Seerr") — **required for TV**, and optional as
+  an endless movie source. Tested against Overseerr **3.4**. TV requests route
+  through Seerr to Sonarr under Seerr's own profiles.
+- At least one of the two above. Movies can come from either; TV needs Seerr.
 - **Docker** (recommended) or **Node.js 20.9+** for a local install
-- A Radarr API key: *Radarr → Settings → General → API Key*
-- Some movies already in your library. Recommendations are derived from what
-  you own, so a nearly empty Radarr produces a nearly empty deck.
+- API keys: *Radarr → Settings → General → API Key* and/or
+  *Seerr → Settings → General → API Key*
 
 ---
 
@@ -210,6 +232,8 @@ and changing it needs no redeploy.
 | --- | --- |
 | `RADARR_URL` | Radarr's address, e.g. `http://192.168.0.10:7878` |
 | `RADARR_API_KEY` | Radarr → Settings → General → API Key |
+| `SEERR_URL` | Overseerr/Jellyseerr address, e.g. `http://192.168.0.10:5055` — required for TV, optional for movies |
+| `SEERR_API_KEY` | Seerr → Settings → General → API Key |
 | `DATA_DIR` | Where the connection, settings, and history are stored. `/config` in Docker. |
 
 Mount `DATA_DIR` as a volume or your settings and undo history reset on every
@@ -243,17 +267,31 @@ from Fliparr's history screen or from Radarr's own settings.
 Only if **Search on add** is enabled, which it is by default. Turn it off in
 Settings to add movies without hunting for a release.
 
-**Does it support Sonarr / TV shows?**
-Not today — it is on the [Roadmap](#roadmap).
+**Does it support TV shows?**
+Yes — but **TV requires Seerr** (Overseerr or Jellyseerr). Sonarr has no
+recommendations/discover endpoint like Radarr's, so there is nothing to build a
+TV deck from on the Sonarr side. Fliparr sources TV from Seerr's endless TV
+discover and, on a right swipe, files a Seerr request that Seerr then hands to
+Sonarr. Flip **Movies / TV** with the toggle under the header. With no Seerr
+connected, the TV tab simply tells you to add one.
 
 **Does it work with Overseerr, Jellyseerr, or Seerr?**
-Not today, but it is the next thing planned — see the [Roadmap](#roadmap).
-A Seerr feed is a natural second deck: Seerr's own Discover surfaces trending
-and popular titles that Radarr's library-derived recommendations never will,
-and a right swipe would file a Seerr request instead of a direct Radarr add.
-The wrinkle is that Seerr has no exclusion concept, so a left swipe would either
-just skip the card or still write the Radarr exclusion — a design choice to
-settle when the feed lands.
+Yes. Seerr is a supported source for **both movies and TV**. Set it up under
+Settings → *Overseerr / Jellyseerr connection*, then pick your **movie source**
+(Radarr or Seerr); TV always uses Seerr. Seerr's discover is effectively endless
+(hundreds of pages of TMDB popular titles), so the deck never runs dry the way
+Radarr's finite recommendation list eventually does. On a Seerr card a right
+swipe **files a request** (Seerr routes it to Radarr/Sonarr) and a left swipe is
+a plain **skip** — Seerr has no exclusion list, so nothing is written and undo
+just brings the card back.
+
+**How many seasons does a TV right-swipe request?**
+Your choice in Settings → *TV seasons to request*: **All seasons** (default),
+**Latest season only**, or **First season only**. It is a single setting rather
+than a prompt on every swipe, to keep swiping fast. **Seerr owns the rest** —
+the quality profile, root folder, language profile, and approval rules all come
+from your Seerr server's defaults; Fliparr just files the request, so there is
+nothing to reconfigure in two places.
 
 **Why is the first load slow?**
 Radarr fetches metadata for all ~100 recommendations from TMDB on every call to
@@ -261,9 +299,10 @@ its Discover endpoint, with no caching on its side. Fliparr caches the result
 for 15 minutes so you only pay that once.
 
 **My deck is empty.**
-Radarr derives recommendations from movies you already own. A small library
-produces few recommendations. Adding films — or pressing **Load more** after
-some swipes — gives it more to work with.
+On the Radarr source, recommendations derive from movies you already own, so a
+small library produces few — add films, or press **Load more**. On the Seerr
+source the deck is effectively endless; an empty one usually means Seerr isn't
+connected, so check Settings.
 
 **Can I run it on a different port?**
 Change the left-hand side of the port mapping, e.g. `-p 8080:3000`.
@@ -272,22 +311,31 @@ Change the left-hand side of the port mapping, e.g. `-p 8080:3000`.
 
 ## How it works
 
-Fliparr is a small Next.js app that talks to Radarr's v3 API from the server
-side, so your API key never reaches the browser and there is no CORS to
-configure.
+Fliparr is a small Next.js app that talks to Radarr's and Seerr's APIs from the
+server side, so your API keys never reach the browser and there is no CORS to
+configure. Each card is tagged with where it came from, and a swipe is routed by
+the card itself — so a deck can mix sources and every write goes to the right
+place.
 
-Two implementation decisions worth knowing before you change `lib/radarr.ts`:
+A few implementation decisions worth knowing before you change `lib/radarr.ts`
+or `lib/seerr.ts`:
 
-**It uses the single-item write endpoints, not the bulk ones.** Radarr's own
+**Radarr writes use the single-item endpoints, not the bulk ones.** Radarr's own
 Discover footer posts to `POST /importlist/movie` and `POST /exclusions/bulk`.
 The bulk add runs with `ignoreErrors: true` and answers `200` with an empty
 array when an add is rejected — in a swipe UI that reads as success while
 nothing happened. `POST /movie` returns a real `400` and hands back the created
 id, which undo needs.
 
-**Undoing an add must pass `addImportExclusion=false`.** If that ever defaults
-to true, "undo" would permanently exclude the film — the exact opposite of what
-the button says.
+**Undoing a Radarr add must pass `addImportExclusion=false`.** If that ever
+defaults to true, "undo" would permanently exclude the film — the exact opposite
+of what the button says.
+
+**TV season resolution skips unaired seasons.** For *Latest* / *First*, Fliparr
+reads the show's seasons from Seerr and picks from ones that have actually aired.
+TMDB often lists an announced-but-unaired next season (a single placeholder
+episode dated months out) that Sonarr/TVDB doesn't carry yet — a naive "latest"
+would request that phantom season and grab nothing.
 
 State lives in a single JSON file in `DATA_DIR`. No database.
 
@@ -295,23 +343,25 @@ State lives in a single JSON file in `DATA_DIR`. No database.
 
 ## Roadmap
 
-Fliparr does one thing well today — swiping Radarr's Discover queue. These are
-the directions it is likely to grow, roughly in order:
+Fliparr already swipes **Radarr recommendations, Seerr movies, and Seerr TV**.
+These are the directions it is likely to grow next, roughly in order:
 
-- **Feed from Seerr (Overseerr / Jellyseerr).** Add a second deck sourced from
-  Seerr's Discover — trending, popular, and upcoming titles that Radarr's
-  library-derived recommendations never surface. A right swipe files a Seerr
-  request (or adds straight to Radarr); the left-swipe behaviour is an open
-  design question since Seerr has no exclusion list. Picking a source would be a
-  toggle in Settings, so Radarr-only installs are unaffected.
-- **TV via Sonarr.** The same swipe model over Sonarr's series recommendations,
-  with add-and-monitor and series-level exclusions.
-- **More feed sources over time** — the deck is source-agnostic internally, so
-  Trakt lists and plain TMDB Discover are candidates once the Seerr path proves
-  the second-source pattern.
+- **Per-show season override.** Season count is a global setting today (All /
+  Latest / First). A quick per-card control — tap to pick seasons before you
+  swipe — would cover the odd show without slowing the common case.
+- **Automatic Radarr → Seerr fallback.** When Radarr's finite recommendation
+  list runs dry, continue the movie deck from Seerr's endless discover instead
+  of showing an empty deck. The per-card source tagging is already in place for
+  this; it just needs an opt-in toggle.
+- **More feed sources** — the deck is source-agnostic internally (each card
+  carries its own source), so Trakt lists and plain TMDB Discover are natural
+  additions.
+- **Optional Sonarr-direct add for TV** — skip the Seerr request step for people
+  who would rather Fliparr talk to Sonarr directly. (A discover source such as
+  Seerr/Trakt/TMDB is still needed to supply the cards, since Sonarr has none.)
 
-Nothing here changes the current Radarr behaviour; new sources are opt-in.
-Issues and PRs that move these along are welcome.
+Nothing here changes existing behaviour; sources and TV are opt-in. Issues and
+PRs that move these along are welcome.
 
 ---
 
@@ -320,9 +370,13 @@ Issues and PRs that move these along are welcome.
 Fliparr is glue. The hard parts belong to other people:
 
 - **[Radarr](https://radarr.video/)** ([GitHub](https://github.com/Radarr/Radarr),
-  GPL-3.0) — does all the real work: the recommendation engine, the library, the
-  indexers, the downloading. Fliparr only calls its API and includes none of its
-  code.
+  GPL-3.0) — does all the real work for movies: the recommendation engine, the
+  library, the indexers, the downloading. Fliparr only calls its API and includes
+  none of its code.
+- **[Overseerr](https://overseerr.dev/)** and
+  **[Jellyseerr](https://github.com/fallenbagel/jellyseerr)** — the endless movie
+  and TV discover feeds, the request workflow, and the routing on to Radarr and
+  Sonarr. Fliparr just files requests against their API.
 - **[TMDB](https://www.themoviedb.org/)** — every poster, backdrop, rating,
   synopsis, and trailer link.
 
@@ -346,8 +400,8 @@ ecosystem Fliparr plugs into and to keep derivatives open.
 ---
 
 <div align="center">
-<sub><b>Keywords:</b> Radarr Tinder · swipe movies · Radarr recommendations ·
-self-hosted movie discovery · homelab media server · Plex Jellyfin Emby
-companion · arr stack · Docker Unraid movie app · import list exclusions ·
-movie curation</sub>
+<sub><b>Keywords:</b> Radarr Tinder · Overseerr Jellyseerr swipe · swipe movies
+and TV · Radarr recommendations · Seerr discover · self-hosted media discovery ·
+homelab media server · Plex Jellyfin Emby companion · arr stack · Sonarr TV
+requests · Docker Unraid media app · import list exclusions · library curation</sub>
 </div>

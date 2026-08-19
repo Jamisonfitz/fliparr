@@ -24,8 +24,15 @@ export interface Ratings {
   trakt?: RatingValue;
 }
 
-/** One item from GET /api/v3/importlist/movie */
+/**
+ * A swipeable card. Modelled on Radarr's importlist/movie item; Seerr movie and
+ * TV results are mapped into the same shape. `source` and `mediaType` are tagged
+ * at load so a swipe routes to the right backend without a global lookup — which
+ * is also what lets a deck mix sources (e.g. Radarr movies then a Seerr fallback).
+ */
 export interface DiscoverMovie {
+  source: DeckSource;
+  mediaType: MediaType;
   title: string;
   sortTitle: string;
   year: number;
@@ -101,13 +108,32 @@ export interface Settings {
   minimumAvailability: MinimumAvailability;
   monitor: MonitorOption;
   searchOnAdd: boolean;
+  /** Which feed the movie deck pulls from. The Radarr fields above only apply when this is "radarr". */
+  source: DeckSource;
+  /** How many seasons a TV right-swipe requests from Seerr. */
+  tvSeasons: SeasonStrategy;
 }
 
 export type SwipeDirection = "right" | "left";
 
+/** Where the deck comes from. Radarr's recommendations, or Seerr's endless discover feed. */
+export type DeckSource = "radarr" | "seerr";
+
+/** What a card is. Movies come from Radarr or Seerr; TV comes from Seerr only. */
+export type MediaType = "movie" | "tv";
+
 /**
- * One recorded swipe. `radarrId` is the id of the created movie (right) or
- * exclusion (left) — undo needs it to issue the matching DELETE.
+ * How many seasons a TV right-swipe requests. A settings default rather than a
+ * per-swipe prompt, so swiping stays fast. `all` needs no lookup; `latest`/
+ * `first` resolve to a season number from Seerr's show detail.
+ */
+export type SeasonStrategy = "all" | "latest" | "first";
+
+/**
+ * One recorded swipe. `radarrId` is the id undo issues its DELETE against — the
+ * created movie (radarr right), the exclusion (radarr left), or the Seerr
+ * request (seerr right). A seerr left is a plain skip with no id (0).
+ * `source` is optional so history written before Seerr existed still undoes.
  */
 export interface SwipeRecord {
   tmdbId: number;
@@ -115,10 +141,12 @@ export interface SwipeRecord {
   year: number;
   direction: SwipeDirection;
   radarrId: number;
+  source?: DeckSource;
+  mediaType?: MediaType;
   at: string;
 }
 
-/** Where Radarr lives. Set in the app, or seeded from env on first run. */
+/** Where Radarr (or Seerr) lives. Set in the app, or seeded from env on first run. */
 export interface Connection {
   url: string;
   apiKey: string;
@@ -127,5 +155,12 @@ export interface Connection {
 export interface StoreData {
   settings: Settings | null;
   connection: Connection | null;
+  seerr: Connection | null;
   history: SwipeRecord[];
+}
+
+/** A minimum-score gate the deck applies client-side. `any` is off. */
+export interface RatingFilter {
+  source: "any" | "imdb" | "rottenTomatoes" | "metacritic" | "tmdb";
+  min: number;
 }

@@ -42,8 +42,9 @@ export default function RatingRow({ ratings }: { ratings?: Ratings }) {
   const imdb = ratings?.imdb?.value;
   const rt = ratings?.rottenTomatoes?.value;
   const mc = ratings?.metacritic?.value;
+  const tmdb = ratings?.tmdb?.value;
 
-  if (imdb == null && rt == null && mc == null) {
+  if (imdb == null && rt == null && mc == null && tmdb == null) {
     return (
       <p className="font-data text-[0.65rem] tracking-[0.14em] text-muted uppercase">
         Unrated
@@ -55,6 +56,11 @@ export default function RatingRow({ ratings }: { ratings?: Ratings }) {
     <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
       {imdb != null && (
         <Chip source="IMDb" value={imdb.toFixed(1)} color="var(--color-imdb)" />
+      )}
+      {/* TMDb is the only score Seerr cards carry — shown only when the richer
+          Radarr sources are absent, so Radarr cards don't get a redundant chip. */}
+      {imdb == null && rt == null && mc == null && tmdb != null && (
+        <Chip source="TMDb" value={tmdb.toFixed(1)} color="var(--color-imdb)" />
       )}
       {rt != null && (
         <Chip

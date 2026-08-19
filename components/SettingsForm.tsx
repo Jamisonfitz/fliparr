@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type {
+  DeckSource,
   MinimumAvailability,
   MonitorOption,
   QualityProfile,
   RootFolder,
+  SeasonStrategy,
   Settings,
 } from "@/lib/types";
 
@@ -25,6 +27,17 @@ const AVAILABILITY_LABELS: Record<MinimumAvailability, string> = {
   announced: "Announced",
   inCinemas: "In cinemas",
   released: "Released",
+};
+
+const SOURCE_LABELS: Record<DeckSource, string> = {
+  radarr: "Radarr — your library's recommendations",
+  seerr: "Seerr — TMDb discover (endless)",
+};
+
+const SEASON_LABELS: Record<SeasonStrategy, string> = {
+  all: "All seasons",
+  latest: "Latest season only",
+  first: "First season only",
 };
 
 function freeSpace(bytes?: number) {
@@ -66,7 +79,9 @@ const inputClass =
   "w-full rounded-lg border border-edge bg-surface px-4 py-3 font-data text-sm text-screen placeholder:text-muted/50 focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none";
 
 /** Address and key, with a Test button so a typo surfaces here, not mid-swipe. */
-function ConnectionSection() {
+function ConnectionSection({ type }: { type: "radarr" | "seerr" }) {
+  const isSeerr = type === "seerr";
+  const query = isSeerr ? "?type=seerr" : "";
   const [url, setUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [keySet, setKeySet] = useState(false);
@@ -77,20 +92,20 @@ function ConnectionSection() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch("/api/connection")
+    fetch(`/api/connection${query}`)
       .then((r) => r.json())
       .then((body) => {
         setUrl(body.url || "");
         setKeySet(Boolean(body.apiKeySet));
       })
       .catch(() => {});
-  }, []);
+  }, [query]);
 
   async function test() {
     setTesting(true);
     setResult(null);
     try {
-      const res = await fetch("/api/connection/test", {
+      const res = await fetch(`/api/connection/test${query}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, apiKey }),
@@ -112,7 +127,7 @@ function ConnectionSection() {
     setSaving(true);
     setResult(null);
     try {
-      const res = await fetch("/api/connection", {
+      const res = await fetch(`/api/connection${query}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, apiKey }),
@@ -133,10 +148,12 @@ function ConnectionSection() {
     <div className="flex flex-col gap-5 border-b border-edge pb-8">
       <div>
         <h2 className="font-data text-[0.62rem] tracking-[0.24em] text-screen uppercase">
-          Radarr connection
+          {isSeerr ? "Overseerr / Jellyseerr connection" : "Radarr connection"}
         </h2>
         <p className="font-body mt-2 text-[0.88rem] leading-relaxed text-muted">
-          Your key is stored on the server and never sent back to this page.
+          {isSeerr
+            ? "Optional — only needed if you set the deck source to Seerr below."
+            : "Your key is stored on the server and never sent back to this page."}
         </p>
       </div>
 
@@ -145,7 +162,7 @@ function ConnectionSection() {
           className={inputClass}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="http://192.168.0.10:7878"
+          placeholder={isSeerr ? "http://192.168.0.10:5055" : "http://192.168.0.10:7878"}
           inputMode="url"
           autoComplete="off"
           spellCheck={false}
@@ -157,7 +174,9 @@ function ConnectionSection() {
         hint={
           keySet
             ? "A key is saved. Leave blank to keep it."
-            : "Radarr → Settings → General → API Key."
+            : isSeerr
+              ? "Seerr → Settings → General → API Key."
+              : "Radarr → Settings → General → API Key."
         }
       >
         <input
@@ -215,17 +234,23 @@ export default function SettingsForm() {
   useEffect(() => {
     async function load() {
       try {
-        const [current, options] = await Promise.all([
-          fetch("/api/settings").then((r) => r.json()),
-          fetch("/api/radarr/options").then((r) => r.json()),
-        ]);
+        const current = await fetch("/api/settings").then((r) => r.json());
         if (current.error) throw new Error(current.error);
-        if (options.error) throw new Error(options.error);
         setSettings(current);
-        setProfiles(options.qualityProfiles);
-        setRoots(options.rootFolders);
       } catch (err) {
         setError((err as Error).message);
+        return;
+      }
+      // Radarr's option lists are only needed for the Radarr source; a
+      // Seerr-only setup should still reach its settings, so don't fail on this.
+      try {
+        const options = await fetch("/api/radarr/options").then((r) => r.json());
+        if (!options.error) {
+          setProfiles(options.qualityProfiles);
+          setRoots(options.rootFolders);
+        }
+      } catch {
+        // Radarr not connected — the Radarr fields just won't render.
       }
     }
     void load();
@@ -271,7 +296,8 @@ export default function SettingsForm() {
       </header>
 
       <div className="flex flex-col gap-8 overflow-y-auto px-5 py-6">
-        <ConnectionSection />
+        <ConnectionSection type="radarr" />
+        <ConnectionSection type="seerr" />
 
         {error && !settings && (
           <p className="font-body text-[0.95rem] leading-relaxed text-restricted">
@@ -281,45 +307,20 @@ export default function SettingsForm() {
 
         {settings && (
           <div className="flex flex-col gap-7">
-            <p className="font-body text-[0.95rem] leading-relaxed text-muted">
-              These apply to every movie you swipe right on.
-            </p>
-
-            <Field label="Quality profile">
+            <Field
+              label="Movie source"
+              hint={
+                settings.source === "seerr"
+                  ? "Swipe right to request in Seerr; left just skips (Seerr has no exclusion list). TV always uses Seerr."
+                  : "Where the movie deck comes from. TV always uses Seerr (connection above)."
+              }
+            >
               <select
                 className={selectClass}
-                value={settings.qualityProfileId}
-                onChange={(e) => update("qualityProfileId", Number(e.target.value))}
+                value={settings.source}
+                onChange={(e) => update("source", e.target.value as DeckSource)}
               >
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Root folder">
-              <select
-                className={selectClass}
-                value={settings.rootFolderPath}
-                onChange={(e) => update("rootFolderPath", e.target.value)}
-              >
-                {roots.map((r) => (
-                  <option key={r.id} value={r.path}>
-                    {r.path} — {freeSpace(r.freeSpace)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Monitor">
-              <select
-                className={selectClass}
-                value={settings.monitor}
-                onChange={(e) => update("monitor", e.target.value as MonitorOption)}
-              >
-                {Object.entries(MONITOR_LABELS).map(([value, label]) => (
+                {Object.entries(SOURCE_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
@@ -328,17 +329,15 @@ export default function SettingsForm() {
             </Field>
 
             <Field
-              label="Minimum availability"
-              hint="How far along a film has to be before Radarr starts looking for it."
+              label="TV seasons to request"
+              hint="TV needs Seerr (connection above). A right-swipe on a show requests this many seasons; Seerr applies its own quality profile, root folder and approval rules — Fliparr just files the request."
             >
               <select
                 className={selectClass}
-                value={settings.minimumAvailability}
-                onChange={(e) =>
-                  update("minimumAvailability", e.target.value as MinimumAvailability)
-                }
+                value={settings.tvSeasons}
+                onChange={(e) => update("tvSeasons", e.target.value as SeasonStrategy)}
               >
-                {Object.entries(AVAILABILITY_LABELS).map(([value, label]) => (
+                {Object.entries(SEASON_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
@@ -346,22 +345,91 @@ export default function SettingsForm() {
               </select>
             </Field>
 
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={settings.searchOnAdd}
-                onChange={(e) => update("searchOnAdd", e.target.checked)}
-                className="mt-0.5 size-5 shrink-0 cursor-pointer accent-approved"
-              />
-              <span className="flex flex-col gap-1">
-                <span className="font-data text-[0.62rem] tracking-[0.22em] text-screen uppercase">
-                  Search on add
-                </span>
-                <span className="font-body text-[0.82rem] leading-snug text-muted">
-                  Start hunting for a release the moment you swipe right.
-                </span>
-              </span>
-            </label>
+            {settings.source === "radarr" && (
+              <>
+                <p className="font-body text-[0.95rem] leading-relaxed text-muted">
+                  These apply to every movie you swipe right on.
+                </p>
+
+                <Field label="Quality profile">
+                  <select
+                    className={selectClass}
+                    value={settings.qualityProfileId}
+                    onChange={(e) => update("qualityProfileId", Number(e.target.value))}
+                  >
+                    {profiles.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Root folder">
+                  <select
+                    className={selectClass}
+                    value={settings.rootFolderPath}
+                    onChange={(e) => update("rootFolderPath", e.target.value)}
+                  >
+                    {roots.map((r) => (
+                      <option key={r.id} value={r.path}>
+                        {r.path} — {freeSpace(r.freeSpace)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Monitor">
+                  <select
+                    className={selectClass}
+                    value={settings.monitor}
+                    onChange={(e) => update("monitor", e.target.value as MonitorOption)}
+                  >
+                    {Object.entries(MONITOR_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field
+                  label="Minimum availability"
+                  hint="How far along a film has to be before Radarr starts looking for it."
+                >
+                  <select
+                    className={selectClass}
+                    value={settings.minimumAvailability}
+                    onChange={(e) =>
+                      update("minimumAvailability", e.target.value as MinimumAvailability)
+                    }
+                  >
+                    {Object.entries(AVAILABILITY_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={settings.searchOnAdd}
+                    onChange={(e) => update("searchOnAdd", e.target.checked)}
+                    className="mt-0.5 size-5 shrink-0 cursor-pointer accent-approved"
+                  />
+                  <span className="flex flex-col gap-1">
+                    <span className="font-data text-[0.62rem] tracking-[0.22em] text-screen uppercase">
+                      Search on add
+                    </span>
+                    <span className="font-body text-[0.82rem] leading-snug text-muted">
+                      Start hunting for a release the moment you swipe right.
+                    </span>
+                  </span>
+                </label>
+              </>
+            )}
 
             <div className="flex items-center gap-4 pb-8">
               <button

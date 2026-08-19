@@ -46,16 +46,20 @@ export default function ActionBar({
   onUndo,
   canUndo,
   disabled,
+  rejectLabel = "Exclude",
+  approveLabel = "Add to library",
 }: {
   onReject: () => void;
   onApprove: () => void;
   onUndo: () => void;
   canUndo: boolean;
   disabled: boolean;
+  rejectLabel?: string;
+  approveLabel?: string;
 }) {
   return (
     <div className="flex shrink-0 items-center justify-center gap-7 pt-5 pb-2">
-      <Button label="Exclude" tone="reject" onClick={onReject} disabled={disabled}>
+      <Button label={rejectLabel} tone="reject" onClick={onReject} disabled={disabled}>
         <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
           <path d="M6 6l12 12M18 6L6 18" />
         </svg>
@@ -68,7 +72,7 @@ export default function ActionBar({
         </svg>
       </Button>
 
-      <Button label="Add to library" tone="approve" onClick={onApprove} disabled={disabled}>
+      <Button label={approveLabel} tone="approve" onClick={onApprove} disabled={disabled}>
         <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
           <path d="M20.5 5.7a5 5 0 00-7.1 0L12 7.1l-1.4-1.4a5 5 0 10-7.1 7.1L12 21l8.5-8.2a5 5 0 000-7.1z" />
         </svg>

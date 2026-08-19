@@ -8,6 +8,7 @@ import {
 } from "motion/react";
 import MovieCard from "./MovieCard";
 import VerdictBand from "./VerdictBand";
+import { actionCopy } from "@/lib/actions";
 import type { DiscoverMovie, SwipeDirection } from "@/lib/types";
 
 /**
@@ -33,6 +34,7 @@ export default function SwipeCard({
   onCommit: (direction: SwipeDirection) => void;
   onPlayTrailer: () => void;
 }) {
+  const copy = actionCopy(movie.source, movie.mediaType);
   const reduceMotion = useReducedMotion();
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-320, 320], reduceMotion ? [0, 0] : [-13, 13]);
@@ -76,8 +78,20 @@ export default function SwipeCard({
       {/* Outside the dragged element on purpose: the band stays put and fills
           the frame while the card slides under it, so it never drifts
           off-centre or clips at the card's edge. */}
-      <VerdictBand tone="approve" opacity={approve} />
-      <VerdictBand tone="reject" opacity={reject} />
+      <VerdictBand
+        tone="approve"
+        opacity={approve}
+        lead={copy.lead}
+        verdict={copy.approveVerdict}
+        detail={copy.approveDetail}
+      />
+      <VerdictBand
+        tone="reject"
+        opacity={reject}
+        lead={copy.lead}
+        verdict={copy.rejectVerdict}
+        detail={copy.rejectDetail}
+      />
     </motion.div>
   );
 }

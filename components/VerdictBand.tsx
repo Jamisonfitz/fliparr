@@ -5,33 +5,30 @@ import { motion, type MotionValue } from "motion/react";
 /**
  * The verdict overlay, styled after the band cards that open theatrical
  * trailers — the green "approved for all audiences" card and its red
- * counterpart. Same centred, letterspaced, double-ruled treatment, saying
- * exactly what the swipe is about to do.
+ * counterpart. Same centred, letterspaced, double-ruled treatment. The words
+ * come from the card's origin (see lib/actions) so it says exactly what the
+ * swipe will do — add vs request, exclude vs skip.
  */
 
-const COPY = {
-  approve: {
-    lead: "This film has been",
-    verdict: "Approved",
-    detail: "For your Radarr library",
-    color: "var(--color-approved)",
-  },
-  reject: {
-    lead: "This film has been",
-    verdict: "Excluded",
-    detail: "From discover — it won't come back",
-    color: "var(--color-restricted)",
-  },
+const TONE_COLOR = {
+  approve: "var(--color-approved)",
+  reject: "var(--color-restricted)",
 } as const;
 
 export default function VerdictBand({
   tone,
   opacity,
+  lead,
+  verdict,
+  detail,
 }: {
-  tone: keyof typeof COPY;
+  tone: keyof typeof TONE_COLOR;
   opacity: MotionValue<number>;
+  lead: string;
+  verdict: string;
+  detail: string;
 }) {
-  const { lead, verdict, detail, color } = COPY[tone];
+  const color = TONE_COLOR[tone];
 
   return (
     <motion.div

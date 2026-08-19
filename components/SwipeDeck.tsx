@@ -9,7 +9,14 @@ import GenreSheet from "./GenreSheet";
 import MovieCard from "./MovieCard";
 import SwipeCard from "./SwipeCard";
 import TrailerSheet from "./TrailerSheet";
-import type { DiscoverMovie, SwipeDirection } from "@/lib/types";
+import { actionCopy } from "@/lib/actions";
+import { passesRating } from "@/lib/ratings";
+import type {
+  DiscoverMovie,
+  MediaType,
+  RatingFilter,
+  SwipeDirection,
+} from "@/lib/types";
 
 /**
  * Owns the deck: loading, swiping, undo, and refill.
@@ -33,6 +40,7 @@ function fanartOf(movie?: DiscoverMovie) {
 }
 
 export default function SwipeDeck() {
+  const [mediaType, setMediaType] = useState<MediaType>("movie");
   const [deck, setDeck] = useState<DiscoverMovie[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
@@ -41,6 +49,7 @@ export default function SwipeDeck() {
   const [undoing, setUndoing] = useState(false);
   const [notice, setNotice] = useState("");
   const [genres, setGenres] = useState<string[]>([]);
+  const [rating, setRating] = useState<RatingFilter>({ source: "any", min: 0 });
   const [genreOpen, setGenreOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [trailer, setTrailer] = useState<DiscoverMovie | null>(null);
@@ -56,19 +65,26 @@ export default function SwipeDeck() {
    */
   const visible = useMemo(
     () =>
-      genres.length === 0
-        ? deck
-        : deck.filter((m) => m.genres.some((g) => genres.includes(g))),
-    [deck, genres],
+      deck.filter(
+        (m) =>
+          (genres.length === 0 || m.genres.some((g) => genres.includes(g))) &&
+          passesRating(m, rating),
+      ),
+    [deck, genres, rating],
+  );
+
+  /** The deck endpoint for the active media type. */
+  const deckUrl = useCallback(
+    (refresh = false) =>
+      `/api/deck?type=${mediaType}${refresh ? "&refresh=1" : ""}`,
+    [mediaType],
   );
 
   // State lands in the promise callbacks rather than the function body, so the
   // mount effect below doesn't set state synchronously and cascade a render.
   const load = useCallback(
     (refresh = false) =>
-      call<{ movies: DiscoverMovie[] }>(
-        `/api/deck${refresh ? "?refresh=1" : ""}`,
-      )
+      call<{ movies: DiscoverMovie[] }>(deckUrl(refresh))
         .then(({ movies }) => {
           setDeck(movies);
           setStatus("ready");
@@ -77,9 +93,11 @@ export default function SwipeDeck() {
           setError(err.message);
           setStatus("error");
         }),
-    [],
+    [deckUrl],
   );
 
+  // Reloads on mount and whenever the media type changes (load's identity
+  // tracks deckUrl → mediaType).
   useEffect(() => {
     void load();
   }, [load]);
@@ -104,10 +122,14 @@ export default function SwipeDeck() {
         await call("/api/swipe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tmdbId: movie.tmdbId, direction }),
+          body: JSON.stringify({
+            tmdbId: movie.tmdbId,
+            direction,
+            mediaType: movie.mediaType,
+          }),
         });
       } catch (err) {
-        // Radarr refused, so put the card back rather than losing it silently.
+        // The write was refused, so put the card back rather than losing it.
         setDeck((d) => [movie, ...d]);
         setUndoDepth((n) => n - 1);
         setNotice((err as Error).message);
@@ -124,7 +146,9 @@ export default function SwipeDeck() {
         movie?: DiscoverMovie;
         warning?: string;
       }>("/api/undo", { method: "POST" });
-      if (movie) setDeck((d) => [movie, ...d]);
+      // The swipe is reversed server-side regardless; only re-show the card if
+      // it belongs to the tab we're on (undo can span a Movies/TV switch).
+      if (movie && movie.mediaType === mediaType) setDeck((d) => [movie, ...d]);
       setUndoDepth((n) => Math.max(0, n - 1));
       if (warning) setNotice(warning);
     } catch (err) {
@@ -132,7 +156,7 @@ export default function SwipeDeck() {
     } finally {
       setUndoing(false);
     }
-  }, [undoDepth, undoing]);
+  }, [undoDepth, undoing, mediaType]);
 
   /** Appends only titles the deck hasn't seen, so a refetch can't duplicate cards. */
   const mergeNew = useCallback((movies: DiscoverMovie[]) => {
@@ -148,18 +172,17 @@ export default function SwipeDeck() {
     refilling.current = true;
     setLoadingMore(true);
     try {
-      const { movies } = await call<{ movies: DiscoverMovie[] }>(
-        "/api/deck?refresh=1",
-      );
+      const { movies } = await call<{ movies: DiscoverMovie[] }>(deckUrl(true));
       const known = new Set(deck.map((m) => m.tmdbId));
       const fresh = movies.filter((m) => !known.has(m.tmdbId));
       mergeNew(movies);
       // Say so rather than leaving the button looking broken. Radarr only
-      // promotes new candidates once swipes free up slots in its top 100.
+      // promotes new candidates once swipes free up slots in its top 100;
+      // Seerr pulls the next discover page.
       setNotice(
         fresh.length
           ? `Added ${fresh.length} more.`
-          : "Nothing new yet — Radarr suggests more as you keep swiping.",
+          : "Nothing new right now — keep swiping.",
       );
     } catch (err) {
       setNotice((err as Error).message);
@@ -167,7 +190,7 @@ export default function SwipeDeck() {
       refilling.current = false;
       setLoadingMore(false);
     }
-  }, [deck, mergeNew]);
+  }, [deck, mergeNew, deckUrl]);
 
   // Every swipe frees a slot in Radarr's top 100, so a refresh brings genuinely
   // new titles rather than the same list again.
@@ -181,7 +204,7 @@ export default function SwipeDeck() {
       return;
     }
     refilling.current = true;
-    call<{ movies: DiscoverMovie[] }>("/api/deck?refresh=1")
+    call<{ movies: DiscoverMovie[] }>(deckUrl(true))
       .then(({ movies }) => mergeNew(movies))
       .catch(() => {
         // A failed background refill isn't worth interrupting the user for.
@@ -189,7 +212,7 @@ export default function SwipeDeck() {
       .finally(() => {
         refilling.current = false;
       });
-  }, [deck.length, status, mergeNew]);
+  }, [deck.length, status, mergeNew, deckUrl]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -205,7 +228,23 @@ export default function SwipeDeck() {
 
   const top = visible[0];
   const backdrop = fanartOf(top);
-  const filtered = genres.length > 0;
+  const vocab = top ? actionCopy(top.source, top.mediaType) : null;
+  const filtered = genres.length > 0 || rating.source !== "any";
+
+  const clearFilters = () => {
+    setGenres([]);
+    setRating({ source: "any", min: 0 });
+  };
+
+  /** Movies/TV switch. TV comes from Seerr; filters reset since genres differ. */
+  const switchType = (next: MediaType) => {
+    if (next === mediaType) return;
+    setMediaType(next);
+    setStatus("loading");
+    setDeck([]);
+    clearFilters();
+    refilling.current = false;
+  };
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
@@ -242,7 +281,7 @@ export default function SwipeDeck() {
           <button
             type="button"
             onClick={() => setGenreOpen(true)}
-            aria-label="Filter by genre"
+            aria-label="Filters"
             className={`cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none ${
               filtered ? "text-screen" : "text-muted hover:text-screen"
             }`}
@@ -289,12 +328,31 @@ export default function SwipeDeck() {
         </div>
       </header>
 
+      {/* Movies / TV. TV is Seerr-only; the switch just changes what the deck serves. */}
+      <div className="relative z-20 flex shrink-0 justify-center px-5 pb-2">
+        <div className="inline-flex rounded-full border border-edge p-0.5">
+          {(["movie", "tv"] as MediaType[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => switchType(t)}
+              aria-pressed={mediaType === t}
+              className={`font-data cursor-pointer rounded-full px-6 py-1.5 text-[0.58rem] tracking-[0.2em] uppercase transition-colors focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none ${
+                mediaType === t ? "bg-screen text-pit" : "text-muted hover:text-screen"
+              }`}
+            >
+              {t === "movie" ? "Movies" : "TV"}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <main className="relative z-10 flex min-h-0 flex-1 flex-col px-4">
         <div className="relative min-h-0 flex-1">
           {status === "loading" && <Message title="Reading Radarr" body="Pulling your recommendations. The first load takes a moment." />}
 
           {status === "error" && (
-            <Message title="Can't reach Radarr" body={error}>
+            <Message title="Can't load the deck" body={error}>
               <Action
                 onClick={() => {
                   setStatus("loading");
@@ -308,17 +366,21 @@ export default function SwipeDeck() {
 
           {status === "ready" && visible.length === 0 && filtered && (
             <Message
-              title="Nothing in that genre"
-              body={`No ${genres.join(" or ").toLowerCase()} left in the deck. ${deck.length} other cards are waiting.`}
+              title="Nothing matches"
+              body={`No cards clear your filters right now. ${deck.length} other cards are waiting.`}
             >
-              <Action onClick={() => setGenres([])}>Clear filter</Action>
+              <Action onClick={clearFilters}>Clear filters</Action>
             </Message>
           )}
 
           {status === "ready" && deck.length === 0 && (
             <Message
               title="Deck clear"
-              body="Nothing left to judge. Radarr suggests more as your library grows."
+              body={
+                mediaType === "tv"
+                  ? "Nothing left to judge right now."
+                  : "Nothing left to judge. Radarr suggests more as your library grows."
+              }
             >
               <Action
                 onClick={() => {
@@ -363,6 +425,8 @@ export default function SwipeDeck() {
             onUndo={() => void undo()}
             canUndo={undoDepth > 0}
             disabled={status !== "ready" || visible.length === 0}
+            rejectLabel={vocab?.rejectLabel}
+            approveLabel={vocab?.approveLabel}
           />
         </div>
       </main>
@@ -387,6 +451,8 @@ export default function SwipeDeck() {
         deck={deck}
         selected={genres}
         onChange={setGenres}
+        rating={rating}
+        onRatingChange={setRating}
       />
 
       <TrailerSheet movie={trailer} onClose={() => setTrailer(null)} />

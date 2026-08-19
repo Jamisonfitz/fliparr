@@ -1,6 +1,7 @@
 import { fail } from "@/lib/api";
 import { findMovie, invalidate, unmarkSwiped } from "@/lib/deck";
 import { deleteExclusion, deleteMovie } from "@/lib/radarr";
+import { deleteSeerrRequest } from "@/lib/seerr";
 import { readStore, removeSwipe } from "@/lib/store";
 
 /**
@@ -27,7 +28,13 @@ export async function POST(request: Request) {
       return Response.json({ error: "Nothing to undo." }, { status: 400 });
     }
 
-    if (entry.direction === "right") {
+    if (entry.source === "seerr") {
+      // A seerr right filed a request; a seerr left was a plain skip with no
+      // write, so there's nothing to reverse but the local hide.
+      if (entry.direction === "right" && entry.radarrId) {
+        await deleteSeerrRequest(entry.radarrId);
+      }
+    } else if (entry.direction === "right") {
       await deleteMovie(entry.radarrId);
     } else {
       await deleteExclusion(entry.radarrId);
@@ -36,12 +43,13 @@ export async function POST(request: Request) {
     // All three are required: the history entry drives undo, the swiped set
     // drives deck filtering, and the cache predates the write. Leaving any of
     // them behind keeps the card invisible.
+    const mediaType = entry.mediaType ?? "movie";
     await removeSwipe(entry.tmdbId);
-    unmarkSwiped(entry.tmdbId);
+    unmarkSwiped(entry.tmdbId, mediaType);
 
-    // Look the movie up before dropping the cache — if it's still in the
+    // Look the card up before dropping the cache — if it's still in the
     // cached payload we can hand it straight back for an instant restore.
-    const movie = await findMovie(entry.tmdbId);
+    const movie = await findMovie(entry.tmdbId, mediaType);
     invalidate();
 
     return Response.json({
@@ -49,7 +57,9 @@ export async function POST(request: Request) {
       undone: entry,
       warning:
         entry.direction === "right"
-          ? "Removed from Radarr. A download already grabbed keeps going."
+          ? entry.source === "seerr"
+            ? "Request cancelled in Seerr."
+            : "Removed from Radarr. A download already grabbed keeps going."
           : undefined,
     });
   } catch (err) {
