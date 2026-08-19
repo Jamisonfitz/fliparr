@@ -77,3 +77,27 @@ Thumbs.db
 
 # Deployment platforms
 .vercel
+
+# AI / agent / session tooling — nothing about how the sausage is made ships
+.claude/
+.rtk/
+.cursor/
+.aider*
+.continue/
+.impeccable/
+.codex/
+.mcp.json
+.mcp.json.*
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.github/copilot-instructions.md
+
+# Archives, backups, and stray dumps
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.bak
+*.orig
+*.rej
