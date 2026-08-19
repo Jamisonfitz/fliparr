@@ -21,9 +21,12 @@ function runtimeLabel(minutes: number) {
 
 export default function MovieCard({
   movie,
+  accent,
   onPlayTrailer,
 }: {
   movie: DiscoverMovie;
+  /** Per-type accent colour (hex) for the Movie/TV badge — tells the two apart at a glance. */
+  accent?: string;
   /** Only the top card gets this; the card behind is inert. */
   onPlayTrailer?: () => void;
 }) {
@@ -38,6 +41,22 @@ export default function MovieCard({
   return (
     <article className="card-surface flex h-full flex-col gap-5 overflow-hidden rounded-2xl border border-edge bg-surface p-5 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.9)]">
       <div className="relative flex min-h-0 flex-1 items-center justify-center">
+        {/* Media-type badge, coloured so Movies and TV read apart at a glance —
+            especially in the blended "Both" deck. The 8-digit hex appends alpha
+            to the #rrggbb accent for the translucent fill and border. */}
+        {accent && (
+          <span
+            className="font-data absolute top-0 left-0 z-10 rounded-full border px-2.5 py-1 text-[0.5rem] font-600 tracking-[0.22em] uppercase backdrop-blur-sm"
+            style={{
+              color: accent,
+              borderColor: `${accent}80`,
+              backgroundColor: `${accent}1f`,
+            }}
+          >
+            {movie.mediaType === "tv" ? "TV" : "Movie"}
+          </span>
+        )}
+
         {movie.remotePoster ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img

@@ -1,6 +1,7 @@
+import { DEFAULT_MOVIE_COLOR, DEFAULT_TV_COLOR } from "./actions";
 import { getQualityProfiles, getRootFolders } from "./radarr";
 import { readStore } from "./store";
-import type { Settings } from "./types";
+import type { MovieSource, Settings } from "./types";
 
 /**
  * Lives here rather than in lib/store so the store stays free of any Radarr
@@ -11,10 +12,14 @@ export async function resolveSettings(): Promise<Settings> {
   const { settings } = await readStore();
   // Backfill fields added after the store was first written.
   if (settings) {
+    // `source` was renamed to `movieSource` in the mixed-deck release.
+    const legacySource = (settings as { source?: MovieSource }).source;
     return {
       ...settings,
-      source: settings.source ?? "radarr",
+      movieSource: settings.movieSource ?? legacySource ?? "radarr",
       tvSeasons: settings.tvSeasons ?? "all",
+      movieColor: settings.movieColor ?? DEFAULT_MOVIE_COLOR,
+      tvColor: settings.tvColor ?? DEFAULT_TV_COLOR,
     };
   }
 
@@ -40,7 +45,9 @@ export async function resolveSettings(): Promise<Settings> {
     minimumAvailability: "released",
     monitor: "movieOnly",
     searchOnAdd: true,
-    source: "radarr",
+    movieSource: "radarr",
     tvSeasons: "all",
+    movieColor: DEFAULT_MOVIE_COLOR,
+    tvColor: DEFAULT_TV_COLOR,
   };
 }

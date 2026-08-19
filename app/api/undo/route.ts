@@ -5,28 +5,29 @@ import { deleteSeerrRequest } from "@/lib/seerr";
 import { readStore, removeHidden, removeSwipe } from "@/lib/store";
 
 /**
- * POST /api/undo               reverses the most recent swipe on the given tab
- * POST /api/undo {mediaType}   most recent swipe of that media type (deck button)
- * POST /api/undo {tmdbId}      that specific swipe, however long ago (history screen)
+ * POST /api/undo                 most recent swipe (any type)
+ * POST /api/undo {mediaTypes}    most recent swipe of one of those types (deck button)
+ * POST /api/undo {tmdbId}        that specific swipe, however long ago (history screen)
  *
  * Returns the movie so the deck can put the card back, plus a warning when
- * undoing an add that may already be downloading. Scoping by mediaType keeps the
- * deck's undo tied to the tab you're on, so it can't reverse the other tab's
- * last action out from under you.
+ * undoing an add that may already be downloading. Scoping by mediaTypes keeps
+ * the deck's undo tied to what's showing (Movies / TV / Both), so it can't
+ * reverse an action from a content mode you aren't looking at.
  */
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       tmdbId?: number;
-      mediaType?: "movie" | "tv";
+      mediaTypes?: ("movie" | "tv")[];
     };
 
     const { history } = await readStore();
+    const types = body.mediaTypes;
     const entry =
       typeof body.tmdbId === "number"
         ? history.find((h) => h.tmdbId === body.tmdbId)
-        : body.mediaType
-          ? history.find((h) => (h.mediaType ?? "movie") === body.mediaType)
+        : Array.isArray(types) && types.length
+          ? history.find((h) => types.includes(h.mediaType ?? "movie"))
           : history[0];
 
     if (!entry) {

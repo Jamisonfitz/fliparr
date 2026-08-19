@@ -1,7 +1,7 @@
 import { getDiscoverMovies } from "./radarr";
 import { getSeerrDiscover } from "./seerr";
-import { getHiddenKeys, getSource } from "./store";
-import type { DiscoverMovie, MediaType } from "./types";
+import { getHiddenKeys, getMovieSource } from "./store";
+import type { ContentType, DiscoverMovie, MediaType } from "./types";
 
 /**
  * The swipe deck. Three feeds behind one interface:
@@ -176,18 +176,68 @@ export function resetDeckState() {
 }
 
 /**
- * Cards to swipe. `force` busts the cache / advances a page — worth doing as the
- * deck thins: for Radarr every swipe frees a slot in its top 100, and for Seerr
- * it pulls the next discover page. TV is always Seerr; movies follow the
- * configured source.
+ * Round-robins several feeds into one deck so a mixed selection alternates
+ * rather than showing all of one kind first. Deduped by mediaType+tmdbId: the
+ * same movie can surface from both Radarr recommendations and Seerr discover.
+ */
+function interleave(lists: DiscoverMovie[][]): DiscoverMovie[] {
+  const out: DiscoverMovie[] = [];
+  const seen = new Set<string>();
+  const max = lists.reduce((m, l) => Math.max(m, l.length), 0);
+  for (let i = 0; i < max; i++) {
+    for (const list of lists) {
+      const card = list[i];
+      if (!card) continue;
+      const k = key(card.mediaType, card.tmdbId);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(card);
+    }
+  }
+  return out;
+}
+
+/**
+ * Cards to swipe, blended from the feeds the user has turned on:
+ *   - movies from Radarr and/or Seerr (per the movie-source setting)
+ *   - TV from Seerr
+ * `content` picks which kinds show ("movie" | "tv" | "both"); each card carries
+ * its own source/type, so a swipe later routes to the right backend on its own.
+ *
+ * `force` busts the cache / advances a page as the deck thins — Radarr promotes
+ * a new candidate per freed slot, Seerr advances a discover page.
+ *
+ * One dead feed (say Radarr offline while Seerr works) is tolerated: its cards
+ * are simply absent. An error only surfaces if *every* selected feed failed, so
+ * a broken source never blanks a deck the others could fill.
  */
 export async function getDeck(
   force = false,
-  mediaType: MediaType = "movie",
+  content: ContentType = "movie",
 ): Promise<DiscoverMovie[]> {
-  if (mediaType === "tv") return getSeerrDeck(force, "tv");
-  const source = await getSource();
-  return source === "seerr" ? getSeerrDeck(force, "movie") : getRadarrDeck(force);
+  const movieSource = await getMovieSource();
+
+  const feeds: Array<Promise<DiscoverMovie[]>> = [];
+  if (content !== "tv") {
+    if (movieSource !== "seerr") feeds.push(getRadarrDeck(force));
+    if (movieSource !== "radarr") feeds.push(getSeerrDeck(force, "movie"));
+  }
+  if (content !== "movie") {
+    feeds.push(getSeerrDeck(force, "tv"));
+  }
+
+  const settled = await Promise.allSettled(feeds);
+  const lists = settled
+    .filter((r): r is PromiseFulfilledResult<DiscoverMovie[]> => r.status === "fulfilled")
+    .map((r) => r.value);
+
+  if (lists.length === 0) {
+    const failure = settled.find((r) => r.status === "rejected");
+    if (failure) throw (failure as PromiseRejectedResult).reason;
+    return [];
+  }
+
+  return interleave(lists);
 }
 
 /**

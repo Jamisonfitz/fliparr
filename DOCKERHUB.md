@@ -33,16 +33,19 @@ no telemetry.
 
 ## Sources
 
-- **Movies** come from your chosen source — **Radarr's** library-derived
-  recommendations, or **Seerr's** endless discover feed (hundreds of pages of
-  TMDB popular titles, so the deck never runs dry).
+- **Movies** come from **Radarr's** library-derived recommendations, **Seerr's**
+  endless discover feed, or **both blended together** — your choice in Settings.
 - **TV** comes from **Seerr** (Overseerr / Jellyseerr). Sonarr has no
   recommendation feed to swipe, so TV requires a Seerr connection. A right swipe
   files a series request; how many seasons it grabs (All / Latest / First) is a
   setting. Seerr applies its own quality profiles, root folders, and approval
   rules — Fliparr just files the request.
+- A **Movies / TV / Both** toggle picks what's showing; **Both** interleaves
+  movies and TV into one deck. Each card carries its own origin, so a mixed deck
+  routes every swipe to the right backend on its own, and coloured per-type
+  badges (configurable) keep movie and TV cards distinct as you swipe.
 
-You need **at least one** of Radarr or Seerr. Movies work with either; TV needs Seerr.
+You need **at least one** of Radarr or Seerr. Movies work with either or both; TV needs Seerr.
 
 ---
 

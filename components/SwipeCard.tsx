@@ -25,11 +25,14 @@ const COMMIT_VELOCITY = 550;
 
 export default function SwipeCard({
   movie,
+  accent,
   exitDirection,
   onCommit,
   onPlayTrailer,
 }: {
   movie: DiscoverMovie;
+  /** Per-type accent colour, forwarded to the card's Movie/TV badge. */
+  accent?: string;
   exitDirection: SwipeDirection | null;
   onCommit: (direction: SwipeDirection) => void;
   onPlayTrailer: () => void;
@@ -72,7 +75,7 @@ export default function SwipeCard({
           onCommit(info.offset.x > 0 ? "right" : "left");
         }}
       >
-        <MovieCard movie={movie} onPlayTrailer={onPlayTrailer} />
+        <MovieCard movie={movie} accent={accent} onPlayTrailer={onPlayTrailer} />
       </motion.div>
 
       {/* Outside the dragged element on purpose: the band stays put and fills

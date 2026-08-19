@@ -5,6 +5,7 @@ import type {
   DeckSource,
   HiddenItem,
   MediaType,
+  MovieSource,
   Settings,
   StoreData,
   SwipeRecord,
@@ -136,10 +137,14 @@ export async function getSeerrConnection(): Promise<Connection | null> {
   return url && apiKey ? { url, apiKey } : null;
 }
 
-/** Which feed the deck reads. Defaults to Radarr; read straight from the store to stay off Radarr's slow path. */
-export async function getSource(): Promise<DeckSource> {
+/**
+ * Which backend(s) the movie deck reads. Defaults to Radarr; read straight from
+ * the store to stay off Radarr's slow path. "both" blends Radarr and Seerr.
+ */
+export async function getMovieSource(): Promise<MovieSource> {
   const { settings } = await readStore();
-  return settings?.source === "seerr" ? "seerr" : "radarr";
+  const s = settings?.movieSource;
+  return s === "seerr" || s === "both" ? s : "radarr";
 }
 
 export function recordSwipe(record: SwipeRecord): Promise<StoreData> {

@@ -9,9 +9,15 @@ import GenreSheet from "./GenreSheet";
 import MovieCard from "./MovieCard";
 import SwipeCard from "./SwipeCard";
 import TrailerSheet from "./TrailerSheet";
-import { actionCopy } from "@/lib/actions";
+import {
+  DEFAULT_MOVIE_COLOR,
+  DEFAULT_TV_COLOR,
+  actionCopy,
+  typeColor,
+} from "@/lib/actions";
 import { passesRating } from "@/lib/ratings";
 import type {
+  ContentType,
   DiscoverMovie,
   MediaType,
   RatingFilter,
@@ -30,6 +36,19 @@ const REFILL_AT = 15;
 /** Background refills to attempt before giving up when the deck won't grow (e.g. a very strict filter). */
 const REFILL_MAX_TRIES = 6;
 
+/** The media types each content mode shows — drives undo scoping and re-insertion. */
+const CONTENT_TYPES: Record<ContentType, MediaType[]> = {
+  movie: ["movie"],
+  tv: ["tv"],
+  both: ["movie", "tv"],
+};
+
+const CONTENT_LABELS: Record<ContentType, string> = {
+  movie: "Movies",
+  tv: "TV",
+  both: "Both",
+};
+
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const body = await res.json().catch(() => ({}));
@@ -42,7 +61,13 @@ function fanartOf(movie?: DiscoverMovie) {
 }
 
 export default function SwipeDeck() {
-  const [mediaType, setMediaType] = useState<MediaType>("movie");
+  // What's showing now — a quick toggle, not saved. "both" interleaves movies and TV.
+  const [content, setContent] = useState<ContentType>("movie");
+  // Per-type accent colours, read once from settings (fall back to the defaults).
+  const [colors, setColors] = useState({
+    movie: DEFAULT_MOVIE_COLOR,
+    tv: DEFAULT_TV_COLOR,
+  });
   const [deck, setDeck] = useState<DiscoverMovie[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
@@ -82,12 +107,25 @@ export default function SwipeDeck() {
     [deck, genres, rating],
   );
 
-  /** The deck endpoint for the active media type. */
+  /** The deck endpoint for the active content selection. */
   const deckUrl = useCallback(
     (refresh = false) =>
-      `/api/deck?type=${mediaType}${refresh ? "&refresh=1" : ""}`,
-    [mediaType],
+      `/api/deck?content=${content}${refresh ? "&refresh=1" : ""}`,
+    [content],
   );
+
+  // Read the accent colours once so cards can be told apart at a glance.
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((s) => {
+        if (s?.movieColor && s?.tvColor)
+          setColors({ movie: s.movieColor, tv: s.tvColor });
+      })
+      .catch(() => {
+        // Non-fatal — the defaults are already in state.
+      });
+  }, []);
 
   // State lands in the promise callbacks rather than the function body, so the
   // mount effect below doesn't set state synchronously and cascade a render.
@@ -152,27 +190,31 @@ export default function SwipeDeck() {
   );
 
   const undo = useCallback(async () => {
-    if (undoDepth[mediaType] === 0 || undoing) return;
+    const types = CONTENT_TYPES[content];
+    if (!types.some((t) => undoDepth[t] > 0) || undoing) return;
     setUndoing(true);
     try {
-      const { movie, warning } = await call<{
+      const { movie, undone, warning } = await call<{
         movie?: DiscoverMovie;
+        undone?: { mediaType?: MediaType };
         warning?: string;
       }>("/api/undo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Scope to this tab: undo the last thing done here, not on the other tab.
-        body: JSON.stringify({ mediaType }),
+        // Scope to what's showing: undo the last thing done in this view, so it
+        // never reverses an action from a content mode you're not looking at.
+        body: JSON.stringify({ mediaTypes: types }),
       });
-      if (movie && movie.mediaType === mediaType) setDeck((d) => [movie, ...d]);
-      setUndoDepth((d) => ({ ...d, [mediaType]: Math.max(0, d[mediaType] - 1) }));
+      if (movie && types.includes(movie.mediaType)) setDeck((d) => [movie, ...d]);
+      const undoneType: MediaType = undone?.mediaType ?? "movie";
+      setUndoDepth((d) => ({ ...d, [undoneType]: Math.max(0, d[undoneType] - 1) }));
       if (warning) setNotice(warning);
     } catch (err) {
       setNotice((err as Error).message);
     } finally {
       setUndoing(false);
     }
-  }, [undoDepth, undoing, mediaType]);
+  }, [undoDepth, undoing, content]);
 
   /** Appends only titles the deck hasn't seen, so a refetch can't duplicate cards. */
   const mergeNew = useCallback((movies: DiscoverMovie[]) => {
@@ -217,10 +259,10 @@ export default function SwipeDeck() {
     prevVisibleLen.current = visible.length;
   }, [visible.length]);
 
-  // A new tab or filter deserves a fresh search budget.
+  // A new content mode or filter deserves a fresh search budget.
   useEffect(() => {
     refillTries.current = 0;
-  }, [genres, rating, mediaType]);
+  }, [genres, rating, content]);
 
   useEffect(() => {
     if (
@@ -260,6 +302,8 @@ export default function SwipeDeck() {
   const top = visible[0];
   const backdrop = fanartOf(top);
   const vocab = top ? actionCopy(top.source, top.mediaType) : null;
+  const topColor = top ? typeColor(top.mediaType, colors.movie, colors.tv) : null;
+  const canUndo = CONTENT_TYPES[content].some((t) => undoDepth[t] > 0);
   const filtered = genres.length > 0 || rating.source !== "any";
 
   const clearFilters = () => {
@@ -267,10 +311,10 @@ export default function SwipeDeck() {
     setRating({ source: "any", min: 0 });
   };
 
-  /** Movies/TV switch. TV comes from Seerr; filters reset since genres differ. */
-  const switchType = (next: MediaType) => {
-    if (next === mediaType) return;
-    setMediaType(next);
+  /** Movies / TV / Both switch. Resets the deck and filters since the mix changes. */
+  const switchContent = (next: ContentType) => {
+    if (next === content) return;
+    setContent(next);
     setStatus("loading");
     setDeck([]);
     clearFilters();
@@ -295,6 +339,25 @@ export default function SwipeDeck() {
         )}
       </AnimatePresence>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-pit/40 via-pit/25 to-pit/85" />
+
+      {/* A faint wash in the current card's type colour, so movie vs TV reads at a
+          glance while you swipe — most useful in "Both", but always on. */}
+      <AnimatePresence>
+        {topColor && (
+          <motion.div
+            key={topColor}
+            aria-hidden
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.14 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: `radial-gradient(120% 80% at 50% 0%, ${topColor} 0%, transparent 60%)`,
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <header className="relative z-20 flex shrink-0 items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
         <span className="font-display text-sm tracking-[0.28em] uppercase">
@@ -359,20 +422,21 @@ export default function SwipeDeck() {
         </div>
       </header>
 
-      {/* Movies / TV. TV is Seerr-only; the switch just changes what the deck serves. */}
+      {/* Movies / TV / Both. "Both" interleaves the two into one deck; each card
+          still routes to its own backend on swipe. TV always comes from Seerr. */}
       <div className="relative z-20 flex shrink-0 justify-center px-5 pb-2">
         <div className="inline-flex rounded-full border border-edge p-0.5">
-          {(["movie", "tv"] as MediaType[]).map((t) => (
+          {(["movie", "tv", "both"] as ContentType[]).map((c) => (
             <button
-              key={t}
+              key={c}
               type="button"
-              onClick={() => switchType(t)}
-              aria-pressed={mediaType === t}
-              className={`font-data cursor-pointer rounded-full px-6 py-1.5 text-[0.58rem] tracking-[0.2em] uppercase transition-colors focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none ${
-                mediaType === t ? "bg-screen text-pit" : "text-muted hover:text-screen"
+              onClick={() => switchContent(c)}
+              aria-pressed={content === c}
+              className={`font-data cursor-pointer rounded-full px-5 py-1.5 text-[0.58rem] tracking-[0.2em] uppercase transition-colors focus-visible:ring-2 focus-visible:ring-screen/70 focus-visible:outline-none ${
+                content === c ? "bg-screen text-pit" : "text-muted hover:text-screen"
               }`}
             >
-              {t === "movie" ? "Movies" : "TV"}
+              {CONTENT_LABELS[c]}
             </button>
           ))}
         </div>
@@ -380,7 +444,7 @@ export default function SwipeDeck() {
 
       <main className="relative z-10 flex min-h-0 flex-1 flex-col px-4">
         <div className="relative min-h-0 flex-1">
-          {status === "loading" && <Message title="Reading Radarr" body="Pulling your recommendations. The first load takes a moment." />}
+          {status === "loading" && <Message title="Loading" body="Pulling your deck. The first load can take a moment." />}
 
           {status === "error" && (
             <Message title="Can't load the deck" body={error}>
@@ -408,9 +472,9 @@ export default function SwipeDeck() {
             <Message
               title="Deck clear"
               body={
-                mediaType === "tv"
+                content === "tv"
                   ? "Nothing left to judge right now."
-                  : "Nothing left to judge. Radarr suggests more as your library grows."
+                  : "Nothing left to judge. Add to your library or check a different source in Settings."
               }
             >
               <Action
@@ -433,13 +497,17 @@ export default function SwipeDeck() {
                   aria-hidden
                   className="pointer-events-none absolute inset-0 scale-[0.93] opacity-25"
                 >
-                  <MovieCard movie={visible[1]} />
+                  <MovieCard
+                    movie={visible[1]}
+                    accent={typeColor(visible[1].mediaType, colors.movie, colors.tv)}
+                  />
                 </div>
               )}
               <AnimatePresence initial={false} custom={exitDirection}>
                 <SwipeCard
                   key={top!.tmdbId}
                   movie={top!}
+                  accent={topColor!}
                   exitDirection={exitDirection}
                   onCommit={(direction) => void commit(direction)}
                   onPlayTrailer={() => setTrailer(top!)}
@@ -454,7 +522,7 @@ export default function SwipeDeck() {
             onReject={() => void commit("left")}
             onApprove={() => void commit("right")}
             onUndo={() => void undo()}
-            canUndo={undoDepth[mediaType] > 0}
+            canUndo={canUndo}
             disabled={status !== "ready" || visible.length === 0}
             rejectLabel={vocab?.rejectLabel}
             approveLabel={vocab?.approveLabel}

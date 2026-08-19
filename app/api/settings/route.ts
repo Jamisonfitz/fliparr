@@ -1,10 +1,11 @@
 import { fail } from "@/lib/api";
+import { DEFAULT_MOVIE_COLOR, DEFAULT_TV_COLOR } from "@/lib/actions";
 import { resolveSettings } from "@/lib/settings";
 import { saveSettings } from "@/lib/store";
 import type {
-  DeckSource,
   MinimumAvailability,
   MonitorOption,
+  MovieSource,
   SeasonStrategy,
   Settings,
 } from "@/lib/types";
@@ -16,6 +17,14 @@ const AVAILABILITY: MinimumAvailability[] = [
   "released",
 ];
 const SEASONS: SeasonStrategy[] = ["all", "latest", "first"];
+const MOVIE_SOURCES: MovieSource[] = ["radarr", "seerr", "both"];
+
+/** A #rrggbb hex colour, else the fallback. Guards against junk reaching a style attribute. */
+function hexColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
+    ? value
+    : fallback;
+}
 
 export async function GET() {
   try {
@@ -28,11 +37,15 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const body = (await request.json()) as Partial<Settings>;
-    const source: DeckSource = body.source === "seerr" ? "seerr" : "radarr";
+    const movieSource: MovieSource = MOVIE_SOURCES.includes(
+      body.movieSource as MovieSource,
+    )
+      ? (body.movieSource as MovieSource)
+      : "radarr";
 
-    // The Radarr fields only drive right-swipes on the Radarr source, so only
-    // hold them to account there — a Seerr-only setup has no profiles to pick.
-    if (source === "radarr") {
+    // The Radarr fields only drive right-swipes that go to Radarr, so only hold
+    // them to account when Radarr is in play — a Seerr-only setup has no profiles.
+    if (movieSource === "radarr" || movieSource === "both") {
       if (typeof body.qualityProfileId !== "number") {
         return Response.json({ error: "qualityProfileId is required." }, { status: 400 });
       }
@@ -60,10 +73,12 @@ export async function PUT(request: Request) {
         ? (body.minimumAvailability as MinimumAvailability)
         : "released",
       searchOnAdd: body.searchOnAdd !== false,
-      source,
+      movieSource,
       tvSeasons: SEASONS.includes(body.tvSeasons as SeasonStrategy)
         ? (body.tvSeasons as SeasonStrategy)
         : "all",
+      movieColor: hexColor(body.movieColor, DEFAULT_MOVIE_COLOR),
+      tvColor: hexColor(body.tvColor, DEFAULT_TV_COLOR),
     };
 
     await saveSettings(settings);

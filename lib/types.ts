@@ -108,19 +108,28 @@ export interface Settings {
   minimumAvailability: MinimumAvailability;
   monitor: MonitorOption;
   searchOnAdd: boolean;
-  /** Which feed the movie deck pulls from. The Radarr fields above only apply when this is "radarr". */
-  source: DeckSource;
+  /** Which backend(s) the movie deck pulls from. The Radarr fields above apply whenever this includes Radarr. */
+  movieSource: MovieSource;
   /** How many seasons a TV right-swipe requests from Seerr. */
   tvSeasons: SeasonStrategy;
+  /** Accent colours (hex) that tell movie cards from TV cards at a glance. */
+  movieColor: string;
+  tvColor: string;
 }
 
 export type SwipeDirection = "right" | "left";
 
-/** Where the deck comes from. Radarr's recommendations, or Seerr's endless discover feed. */
+/** Where a single card came from — decided per card so a swipe routes to the right backend. */
 export type DeckSource = "radarr" | "seerr";
+
+/** Which backend(s) the movie deck draws from. "both" blends Radarr recs and Seerr discover. */
+export type MovieSource = "radarr" | "seerr" | "both";
 
 /** What a card is. Movies come from Radarr or Seerr; TV comes from Seerr only. */
 export type MediaType = "movie" | "tv";
+
+/** What the deck is showing right now — a quick toggle, not a saved setting. "both" interleaves. */
+export type ContentType = "movie" | "tv" | "both";
 
 /**
  * How many seasons a TV right-swipe requests. A settings default rather than a

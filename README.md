@@ -64,15 +64,23 @@ to configure.
 <img src="docs/screenshots/trailer.png" width="320" alt="Movie trailer playing in a sheet over the Fliparr deck">
 </div>
 
-### Movies and TV, from Radarr or Seerr
+### Movies and TV, blended or on their own
 
-A **Movies / TV** toggle sits under the header. Movies come from your chosen
-source — Radarr's library-derived recommendations, or Seerr's endless discover.
-**TV comes from Seerr** (Overseerr / Jellyseerr), because Sonarr has no
-recommendation feed to swipe. A right swipe on a Seerr card files a request that
-Seerr routes on to Radarr/Sonarr under its own profiles; a left swipe just skips
-it. Each card knows where it came from, so the buttons say the right thing —
-*Add* vs *Request*, *Exclude* vs *Skip*.
+A **Movies / TV / Both** toggle sits under the header. **Both** interleaves the
+two into one deck. Movies come from your chosen source — Radarr's library-derived
+recommendations, Seerr's endless discover, or **both blended together**; **TV
+comes from Seerr** (Overseerr / Jellyseerr), because Sonarr has no recommendation
+feed to swipe.
+
+Every card carries its own origin, so a single mixed deck routes each swipe to
+the right place on its own: a Radarr movie is *added* / *excluded*, a Seerr movie
+or show is *requested* / *skipped* — the buttons and the drag verdict change to
+match the card. If one source is down, its cards are simply absent; the deck
+still fills from the others.
+
+**Tell them apart at a glance:** movie and TV cards each carry a coloured badge
+and a matching backdrop tint (amber and teal by default, both configurable in
+Settings), so a blended deck never leaves you guessing what you're swiping.
 
 ### Filter by genre and rating
 
@@ -278,12 +286,21 @@ connected, the TV tab simply tells you to add one.
 **Does it work with Overseerr, Jellyseerr, or Seerr?**
 Yes. Seerr is a supported source for **both movies and TV**. Set it up under
 Settings → *Overseerr / Jellyseerr connection*, then pick your **movie source**
-(Radarr or Seerr); TV always uses Seerr. Seerr's discover is effectively endless
-(hundreds of pages of TMDB popular titles), so the deck never runs dry the way
-Radarr's finite recommendation list eventually does. On a Seerr card a right
-swipe **files a request** (Seerr routes it to Radarr/Sonarr) and a left swipe is
-a plain **skip** — Seerr has no exclusion list, so nothing is written and undo
-just brings the card back.
+(Radarr, Seerr, or Both); TV always uses Seerr. Seerr's discover is effectively
+endless (hundreds of pages of TMDB popular titles), so the deck never runs dry
+the way Radarr's finite recommendation list eventually does. On a Seerr card a
+right swipe **files a request** (Seerr routes it to Radarr/Sonarr) and a left
+swipe is a plain **skip** — Seerr has no exclusion list, so nothing is written
+and undo just brings the card back.
+
+**Can I mix movies and TV, or Radarr and Seerr, in one deck?**
+Yes. Flip the header toggle to **Both** to interleave movies and TV, and set the
+**movie source** to **Both** to blend Radarr recommendations with Seerr discover.
+Everything lands in one deck; each card carries its own origin, so a Radarr movie
+is added to Radarr, a Seerr movie or show files a Seerr request, all from the
+same stack of cards. Coloured per-type badges (configurable in Settings) keep
+movie and TV cards distinct as you swipe. If a source is offline, its cards drop
+out and the deck fills from whatever's left.
 
 **How many seasons does a TV right-swipe request?**
 Your choice in Settings → *TV seasons to request*: **All seasons** (default),

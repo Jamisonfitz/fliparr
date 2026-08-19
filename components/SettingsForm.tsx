@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type {
-  DeckSource,
   MinimumAvailability,
   MonitorOption,
+  MovieSource,
   QualityProfile,
   RootFolder,
   SeasonStrategy,
@@ -29,9 +29,10 @@ const AVAILABILITY_LABELS: Record<MinimumAvailability, string> = {
   released: "Released",
 };
 
-const SOURCE_LABELS: Record<DeckSource, string> = {
+const MOVIE_SOURCE_LABELS: Record<MovieSource, string> = {
   radarr: "Radarr — your library's recommendations",
   seerr: "Seerr — TMDb discover (endless)",
+  both: "Both — blend Radarr and Seerr",
 };
 
 const SEASON_LABELS: Record<SeasonStrategy, string> = {
@@ -431,22 +432,54 @@ export default function SettingsForm() {
             <Field
               label="Movie source"
               hint={
-                settings.source === "seerr"
-                  ? "Swipe right to request in Seerr; left just skips (Seerr has no exclusion list). TV always uses Seerr."
-                  : "Where the movie deck comes from. TV always uses Seerr (connection above)."
+                settings.movieSource === "seerr"
+                  ? "Movies come from Seerr: right requests, left skips (Seerr has no exclusion list). TV always uses Seerr."
+                  : settings.movieSource === "both"
+                    ? "Movies blend Radarr recommendations and Seerr discover; each card routes to its own backend. TV always uses Seerr."
+                    : "Movies come from Radarr's recommendations. TV always uses Seerr (connection above)."
               }
             >
               <select
                 className={selectClass}
-                value={settings.source}
-                onChange={(e) => update("source", e.target.value as DeckSource)}
+                value={settings.movieSource}
+                onChange={(e) => update("movieSource", e.target.value as MovieSource)}
               >
-                {Object.entries(SOURCE_LABELS).map(([value, label]) => (
+                {Object.entries(MOVIE_SOURCE_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
                 ))}
               </select>
+            </Field>
+
+            <Field
+              label="Card colours"
+              hint="How movie cards and TV cards are tinted so you can tell them apart at a glance — especially in a blended deck."
+            >
+              <div className="flex flex-wrap gap-3">
+                {(
+                  [
+                    ["movieColor", "Movies"],
+                    ["tvColor", "TV"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label
+                    key={key}
+                    className="flex items-center gap-2 rounded-lg border border-edge bg-surface px-3 py-2"
+                  >
+                    <input
+                      type="color"
+                      value={settings[key]}
+                      onChange={(e) => update(key, e.target.value)}
+                      aria-label={`${label} card colour`}
+                      className="size-7 cursor-pointer rounded border-0 bg-transparent p-0"
+                    />
+                    <span className="font-data text-[0.6rem] tracking-[0.18em] text-muted uppercase">
+                      {label}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </Field>
 
             <Field
@@ -466,10 +499,11 @@ export default function SettingsForm() {
               </select>
             </Field>
 
-            {settings.source === "radarr" && (
+            {(settings.movieSource === "radarr" ||
+              settings.movieSource === "both") && (
               <>
                 <p className="font-body text-[0.95rem] leading-relaxed text-muted">
-                  These apply to every movie you swipe right on.
+                  These apply to movies you add to Radarr.
                 </p>
 
                 <Field label="Quality profile">

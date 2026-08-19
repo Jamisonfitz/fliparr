@@ -1,6 +1,23 @@
 import type { DeckSource, MediaType } from "./types";
 
 /**
+ * Default accent colours that distinguish movie cards from TV cards. Amber for
+ * film, teal for TV — overridable per install in Settings. Kept here so the
+ * server (settings defaults) and the client (card styling) agree on one source.
+ */
+export const DEFAULT_MOVIE_COLOR = "#f0b429";
+export const DEFAULT_TV_COLOR = "#2dd4bf";
+
+/** The accent colour for a card's media type, given the user's chosen colours. */
+export function typeColor(
+  mediaType: MediaType,
+  movieColor = DEFAULT_MOVIE_COLOR,
+  tvColor = DEFAULT_TV_COLOR,
+): string {
+  return mediaType === "tv" ? tvColor : movieColor;
+}
+
+/**
  * The words a swipe uses, derived from the card's origin so the buttons and the
  * drag verdict bands say what the swipe will actually do:
  *   - Radarr movie: right adds to the library, left writes a permanent exclusion.
