@@ -143,7 +143,13 @@ export async function getSeerrConnection(): Promise<Connection | null> {
  */
 export async function getMovieSource(): Promise<MovieSource> {
   const { settings } = await readStore();
-  const s = settings?.movieSource;
+  // `source` was renamed to `movieSource`; honour the legacy field until a
+  // settings save rewrites it, or a store from before the rename silently
+  // reverts to Radarr.
+  const legacy = settings
+    ? (settings as { source?: MovieSource }).source
+    : undefined;
+  const s = settings?.movieSource ?? legacy;
   return s === "seerr" || s === "both" ? s : "radarr";
 }
 
