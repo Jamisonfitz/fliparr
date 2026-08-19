@@ -226,10 +226,11 @@ export default function SwipeDeck() {
     if (
       status !== "ready" ||
       refilling.current ||
-      deck.length === 0 ||
       visible.length >= REFILL_AT ||
       refillTries.current >= REFILL_MAX_TRIES // dry — wait for a swipe or filter change
     ) {
+      // Note: an empty deck still refills — a large hidden list can filter a
+      // whole page away, and we want the next pages, not a false "Deck clear".
       return;
     }
     refilling.current = true;

@@ -149,12 +149,14 @@ async function getSeerrDeck(
         !hidden.has(key(mediaType, m.tmdbId)),
     );
 
-  if (lane.items.length === 0) await loadSeerrPage(mediaType);
+  const cold = lane.items.length === 0;
+  if (cold) await loadSeerrPage(mediaType);
 
-  // force ("refresh") means the deck is thinning — pull pages until we've added a
-  // batch of genuinely showable cards, so a page that's entirely filtered out
-  // (existing/skipped/hidden) doesn't leave the deck stuck.
-  if (force) {
+  // Batch on the first load and on every refill: pull pages until we've gathered
+  // a batch of genuinely showable cards, so a page that's entirely filtered out
+  // (existing / skipped / hidden) doesn't leave the deck empty. With a large
+  // hidden list the first popular page can filter to nothing on its own.
+  if (cold || force) {
     const target = showable().length + REFILL_BATCH;
     for (let i = 0; i < REFILL_PAGE_CAP && showable().length < target; i++) {
       const before = lane.items.length;
