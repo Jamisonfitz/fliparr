@@ -77,7 +77,10 @@ jobs:
       # Keep the Docker Hub page's text in sync with the repo, so the listing is
       # maintained in git and never hand-edited in the web UI. Only on main, only
       # when Docker Hub is configured.
+      # Non-blocking: Docker Hub's description API 403s for scoped Read/Write
+      # PATs, so a failure here must not fail the image publish.
       - uses: peter-evans/dockerhub-description@v4
+        continue-on-error: true
         if: >-
           github.event_name == 'push'
           && github.ref == 'refs/heads/main'
