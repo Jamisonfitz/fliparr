@@ -104,10 +104,11 @@ reversed on its own — a mistake twenty cards back is one tap, not twenty.
 
 ### Connect and configure in the app
 
-Radarr's address and API key are set in Settings with a **Test** button, so a
-typo surfaces immediately instead of as a failed swipe later. Quality profile,
-root folder, monitor mode, minimum availability, and search-on-add are read
-live from your Radarr.
+Radarr and Seerr addresses and API keys are set in Settings, each with a **Test**
+button so a typo surfaces immediately instead of as a failed swipe later. Pick
+your movie source (Radarr, Seerr, or both), the TV season strategy, and the
+per-type card colours. Radarr's quality profile, root folder, monitor mode,
+minimum availability, and search-on-add are read live from your Radarr.
 
 <div align="center">
 <img src="docs/screenshots/settings.png" width="320" alt="Fliparr settings screen showing Radarr connection with a test button">
@@ -204,9 +205,14 @@ services:
 
 ### Unraid
 
-Unraid does not ship the compose plugin, so use the `docker run` command above
-from **Tools → Web Terminal**, with `-v /mnt/user/appdata/fliparr:/config`.
-Port **7979** sits clear of Radarr (7878), Sonarr (8989), and Prowlarr (9696).
+The easiest way: open **Community Applications**, search **Fliparr**, and click
+Install — the template fills in the port, the `host.docker.internal` extra host,
+and the Radarr/Seerr fields for you.
+
+Prefer the command line? Unraid does not ship the compose plugin, so use the
+`docker run` command above from **Tools → Web Terminal**, with
+`-v /mnt/user/appdata/fliparr:/config`. Port **7979** sits clear of Radarr
+(7878), Sonarr (8989), and Prowlarr (9696).
 
 ### Build from source
 
@@ -280,8 +286,9 @@ Yes — but **TV requires Seerr** (Overseerr or Jellyseerr). Sonarr has no
 recommendations/discover endpoint like Radarr's, so there is nothing to build a
 TV deck from on the Sonarr side. Fliparr sources TV from Seerr's endless TV
 discover and, on a right swipe, files a Seerr request that Seerr then hands to
-Sonarr. Flip **Movies / TV** with the toggle under the header. With no Seerr
-connected, the TV tab simply tells you to add one.
+Sonarr. Flip **Movies / TV / Both** with the toggle under the header — "Both"
+blends movies and TV into one deck. With no Seerr connected, the TV tab simply
+tells you to add one.
 
 **Does it work with Overseerr, Jellyseerr, or Seerr?**
 Yes. Seerr is a supported source for **both movies and TV**. Set it up under
